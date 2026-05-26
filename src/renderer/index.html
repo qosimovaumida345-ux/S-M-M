@@ -11,12 +11,50 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div id="app">
+    <div id="splash-screen">
+        <div class="splash-content">
+            <div class="splash-logo">
+                <svg width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="logoGrad" x1="0" y1="0" x2="80" y2="80" gradientUnits="userSpaceOnUse">
+                            <stop offset="0%" stop-color="#6366f1"/>
+                            <stop offset="100%" stop-color="#8b5cf6"/>
+                        </linearGradient>
+                        <filter id="logoGlow" x="-50%" y="-50%" width="200%" height="200%">
+                            <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur"/>
+                            <feMerge>
+                                <feMergeNode in="blur"/>
+                                <feMergeNode in="SourceGraphic"/>
+                            </feMerge>
+                        </filter>
+                    </defs>
+                    <rect x="4" y="4" width="72" height="72" rx="18" fill="url(#logoGrad)" filter="url(#logoGlow)" class="splash-hex"/>
+                    <path d="M44 20L32 42H38L36 60L52 36H44L48 20Z" fill="white" class="splash-bolt"/>
+                </svg>
+            </div>
+            <div class="splash-title">SMM Service</div>
+            <div class="splash-subtitle">Professional Automation Suite</div>
+            <div class="splash-loader">
+                <div class="splash-loader-bar"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="app" style="display:none;">
         <div class="titlebar" id="titlebar">
             <div class="titlebar-drag">
                 <div class="titlebar-logo">
                     <div class="logo-icon">
-                        <i class="fas fa-bolt"></i>
+                        <svg width="16" height="16" viewBox="0 0 80 80" fill="none">
+                            <rect x="4" y="4" width="72" height="72" rx="18" fill="url(#logoGrad2)"/>
+                            <path d="M44 20L32 42H38L36 60L52 36H44L48 20Z" fill="white"/>
+                            <defs>
+                                <linearGradient id="logoGrad2" x1="0" y1="0" x2="80" y2="80" gradientUnits="userSpaceOnUse">
+                                    <stop offset="0%" stop-color="#6366f1"/>
+                                    <stop offset="100%" stop-color="#8b5cf6"/>
+                                </linearGradient>
+                            </defs>
+                        </svg>
                     </div>
                     <span class="logo-text">SMM Service</span>
                     <span class="logo-version">v1.0.0</span>
@@ -171,8 +209,17 @@
     <script src="pages/platform.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            window.app = new App();
-            window.app.init();
+            setTimeout(() => {
+                document.getElementById('splash-screen').style.opacity = '0';
+                setTimeout(() => {
+                    document.getElementById('splash-screen').style.display = 'none';
+                    document.getElementById('app').style.display = 'flex';
+                    document.getElementById('app').style.flexDirection = 'column';
+                    document.getElementById('app').classList.add('fade-in');
+                    window.app = new App();
+                    window.app.init();
+                }, 500);
+            }, 2500);
         });
     </script>
 </body>

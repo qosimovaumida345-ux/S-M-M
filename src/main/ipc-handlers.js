@@ -3,7 +3,6 @@ const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 
 let engine = null;
-let accountStore = null;
 let proxyManager = null;
 let smsService = null;
 let captchaSolver = null;
@@ -13,7 +12,6 @@ function lazyLoadModules() {
     if (!engine) {
         try {
             engine = require('../core/engine');
-            accountStore = require('../core/account-store');
             proxyManager = require('../core/proxy-manager');
             smsService = require('../core/sms-service');
             captchaSolver = require('../core/captcha-solver');
@@ -34,7 +32,9 @@ function readJsonFile(filePath) {
 }
 
 function writeJsonFile(filePath, data) {
-    fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+    try {
+        fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+    } catch (e) {}
 }
 
 function getAllJsonFiles(dirPath) {
@@ -72,14 +72,16 @@ function register(ipcMain, mainWindow, paths) {
             return getAllJsonFiles(accountsDir);
         }
         const allAccounts = [];
-        const platforms = fs.readdirSync(ACCOUNTS_PATH);
-        for (const plat of platforms) {
-            const platDir = path.join(ACCOUNTS_PATH, plat);
-            if (fs.statSync(platDir).isDirectory()) {
-                const accounts = getAllJsonFiles(platDir);
-                allAccounts.push(...accounts.map(a => ({ ...a, platform: plat })));
+        try {
+            const platforms = fs.readdirSync(ACCOUNTS_PATH);
+            for (const plat of platforms) {
+                const platDir = path.join(ACCOUNTS_PATH, plat);
+                if (fs.statSync(platDir).isDirectory()) {
+                    const accounts = getAllJsonFiles(platDir);
+                    allAccounts.push(...accounts.map(a => ({ ...a, platform: plat })));
+                }
             }
-        }
+        } catch (e) {}
         return allAccounts;
     });
 
@@ -129,19 +131,21 @@ function register(ipcMain, mainWindow, paths) {
     ipcMain.handle('get-account-stats', () => {
         const stats = { total: 0, byPlatform: {}, byStatus: {} };
         if (!fs.existsSync(ACCOUNTS_PATH)) return stats;
-        const platforms = fs.readdirSync(ACCOUNTS_PATH);
-        for (const plat of platforms) {
-            const platDir = path.join(ACCOUNTS_PATH, plat);
-            if (fs.statSync(platDir).isDirectory()) {
-                const accounts = getAllJsonFiles(platDir);
-                stats.byPlatform[plat] = accounts.length;
-                stats.total += accounts.length;
-                for (const acc of accounts) {
-                    const status = acc.status || 'unknown';
-                    stats.byStatus[status] = (stats.byStatus[status] || 0) + 1;
+        try {
+            const platforms = fs.readdirSync(ACCOUNTS_PATH);
+            for (const plat of platforms) {
+                const platDir = path.join(ACCOUNTS_PATH, plat);
+                if (fs.statSync(platDir).isDirectory()) {
+                    const accounts = getAllJsonFiles(platDir);
+                    stats.byPlatform[plat] = accounts.length;
+                    stats.total += accounts.length;
+                    for (const acc of accounts) {
+                        const status = acc.status || 'unknown';
+                        stats.byStatus[status] = (stats.byStatus[status] || 0) + 1;
+                    }
                 }
             }
-        }
+        } catch (e) {}
         return stats;
     });
 
@@ -262,11 +266,6 @@ function register(ipcMain, mainWindow, paths) {
                 if (mainWindow && !mainWindow.isDestroyed()) {
                     mainWindow.webContents.send('task-progress', update);
                 }
-                const currentTask = readJsonFile(taskFile);
-                if (currentTask) {
-                    Object.assign(currentTask, update);
-                    writeJsonFile(taskFile, currentTask);
-                }
             });
         }
         return { success: true };
@@ -290,14 +289,16 @@ function register(ipcMain, mainWindow, paths) {
     ipcMain.handle('get-dashboard-stats', () => {
         const accounts = [];
         if (fs.existsSync(ACCOUNTS_PATH)) {
-            const platforms = fs.readdirSync(ACCOUNTS_PATH);
-            for (const plat of platforms) {
-                const platDir = path.join(ACCOUNTS_PATH, plat);
-                if (fs.statSync(platDir).isDirectory()) {
-                    const accs = getAllJsonFiles(platDir);
-                    accounts.push(...accs.map(a => ({ ...a, platform: plat })));
+            try {
+                const platforms = fs.readdirSync(ACCOUNTS_PATH);
+                for (const plat of platforms) {
+                    const platDir = path.join(ACCOUNTS_PATH, plat);
+                    if (fs.statSync(platDir).isDirectory()) {
+                        const accs = getAllJsonFiles(platDir);
+                        accounts.push(...accs.map(a => ({ ...a, platform: plat })));
+                    }
                 }
-            }
+            } catch (e) {}
         }
         const tasks = getAllJsonFiles(TASKS_PATH);
         const proxyFile = path.join(PROXIES_PATH, 'proxies.json');
@@ -384,28 +385,32 @@ function register(ipcMain, mainWindow, paths) {
     ipcMain.handle('get-logs', (event, { limit, offset }) => {
         const logFiles = [];
         if (fs.existsSync(LOGS_PATH)) {
-            const files = fs.readdirSync(LOGS_PATH)
-                .filter(f => f.endsWith('.log'))
-                .sort((a, b) => {
-                    const aTime = fs.statSync(path.join(LOGS_PATH, a)).mtime;
-                    const bTime = fs.statSync(path.join(LOGS_PATH, b)).mtime;
-                    return bTime - aTime;
-                });
-            const sliced = files.slice(offset || 0, (offset || 0) + (limit || 50));
-            for (const file of sliced) {
-                const content = fs.readFileSync(path.join(LOGS_PATH, file), 'utf8');
-                logFiles.push({ name: file, content, time: fs.statSync(path.join(LOGS_PATH, file)).mtime });
-            }
+            try {
+                const files = fs.readdirSync(LOGS_PATH)
+                    .filter(f => f.endsWith('.log'))
+                    .sort((a, b) => {
+                        const aTime = fs.statSync(path.join(LOGS_PATH, a)).mtime;
+                        const bTime = fs.statSync(path.join(LOGS_PATH, b)).mtime;
+                        return bTime - aTime;
+                    });
+                const sliced = files.slice(offset || 0, (offset || 0) + (limit || 50));
+                for (const file of sliced) {
+                    const content = fs.readFileSync(path.join(LOGS_PATH, file), 'utf8');
+                    logFiles.push({ name: file, content, time: fs.statSync(path.join(LOGS_PATH, file)).mtime });
+                }
+            } catch (e) {}
         }
         return logFiles;
     });
 
     ipcMain.handle('clear-logs', () => {
         if (fs.existsSync(LOGS_PATH)) {
-            const files = fs.readdirSync(LOGS_PATH);
-            for (const file of files) {
-                fs.unlinkSync(path.join(LOGS_PATH, file));
-            }
+            try {
+                const files = fs.readdirSync(LOGS_PATH);
+                for (const file of files) {
+                    fs.unlinkSync(path.join(LOGS_PATH, file));
+                }
+            } catch (e) {}
         }
         return { success: true };
     });
@@ -416,6 +421,7 @@ function register(ipcMain, mainWindow, paths) {
         const task = {
             id: uuidv4(),
             type: 'account-creation',
+            action: 'create-account',
             platform,
             count,
             useProxy,
@@ -476,14 +482,16 @@ function register(ipcMain, mainWindow, paths) {
     ipcMain.handle('get-platform-accounts-count', () => {
         const counts = {};
         if (!fs.existsSync(ACCOUNTS_PATH)) return counts;
-        const platforms = fs.readdirSync(ACCOUNTS_PATH);
-        for (const plat of platforms) {
-            const platDir = path.join(ACCOUNTS_PATH, plat);
-            if (fs.statSync(platDir).isDirectory()) {
-                const files = fs.readdirSync(platDir).filter(f => f.endsWith('.json'));
-                counts[plat] = files.length;
+        try {
+            const platforms = fs.readdirSync(ACCOUNTS_PATH);
+            for (const plat of platforms) {
+                const platDir = path.join(ACCOUNTS_PATH, plat);
+                if (fs.statSync(platDir).isDirectory()) {
+                    const files = fs.readdirSync(platDir).filter(f => f.endsWith('.json'));
+                    counts[plat] = files.length;
+                }
             }
-        }
+        } catch (e) {}
         return counts;
     });
 }
