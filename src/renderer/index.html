@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SMM Service</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app">
+        <div class="titlebar" id="titlebar">
+            <div class="titlebar-drag">
+                <div class="titlebar-logo">
+                    <div class="logo-icon">
+                        <i class="fas fa-bolt"></i>
+                    </div>
+                    <span class="logo-text">SMM Service</span>
+                    <span class="logo-version">v1.0.0</span>
+                </div>
+            </div>
+            <div class="titlebar-controls">
+                <button class="titlebar-btn minimize-btn" id="btn-minimize">
+                    <i class="fas fa-minus"></i>
+                </button>
+                <button class="titlebar-btn maximize-btn" id="btn-maximize">
+                    <i class="far fa-square"></i>
+                </button>
+                <button class="titlebar-btn close-btn" id="btn-close">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+
+        <div class="main-layout">
+            <nav class="sidebar" id="sidebar">
+                <div class="sidebar-nav">
+                    <div class="nav-section">
+                        <span class="nav-section-title">MAIN</span>
+                        <a class="nav-item active" data-page="dashboard" href="#">
+                            <i class="fas fa-th-large"></i>
+                            <span>Dashboard</span>
+                        </a>
+                        <a class="nav-item" data-page="tasks" href="#">
+                            <i class="fas fa-tasks"></i>
+                            <span>Tasks</span>
+                            <span class="nav-badge" id="running-tasks-badge">0</span>
+                        </a>
+                        <a class="nav-item" data-page="accounts" href="#">
+                            <i class="fas fa-users"></i>
+                            <span>Accounts</span>
+                        </a>
+                    </div>
+                    <div class="nav-section">
+                        <span class="nav-section-title">TOOLS</span>
+                        <a class="nav-item" data-page="proxies" href="#">
+                            <i class="fas fa-shield-alt"></i>
+                            <span>Proxies</span>
+                        </a>
+                        <a class="nav-item" data-page="sms" href="#">
+                            <i class="fas fa-sms"></i>
+                            <span>SMS Service</span>
+                        </a>
+                        <a class="nav-item" data-page="captcha" href="#">
+                            <i class="fas fa-puzzle-piece"></i>
+                            <span>Captcha Solver</span>
+                        </a>
+                    </div>
+                    <div class="nav-section">
+                        <span class="nav-section-title">PLATFORMS</span>
+                        <a class="nav-item" data-page="platform-instagram" href="#">
+                            <i class="fab fa-instagram"></i>
+                            <span>Instagram</span>
+                        </a>
+                        <a class="nav-item" data-page="platform-youtube" href="#">
+                            <i class="fab fa-youtube"></i>
+                            <span>YouTube</span>
+                        </a>
+                        <a class="nav-item" data-page="platform-telegram" href="#">
+                            <i class="fab fa-telegram"></i>
+                            <span>Telegram</span>
+                        </a>
+                        <a class="nav-item" data-page="platform-tiktok" href="#">
+                            <i class="fab fa-tiktok"></i>
+                            <span>TikTok</span>
+                        </a>
+                        <a class="nav-item" data-page="platform-discord" href="#">
+                            <i class="fab fa-discord"></i>
+                            <span>Discord</span>
+                        </a>
+                        <a class="nav-item" data-page="platform-twitter" href="#">
+                            <i class="fab fa-x-twitter"></i>
+                            <span>X (Twitter)</span>
+                        </a>
+                        <a class="nav-item" data-page="platform-roblox" href="#">
+                            <i class="fas fa-gamepad"></i>
+                            <span>Roblox</span>
+                        </a>
+                        <a class="nav-item" data-page="platform-facebook" href="#">
+                            <i class="fab fa-facebook"></i>
+                            <span>Facebook</span>
+                        </a>
+                        <a class="nav-item" data-page="platform-spotify" href="#">
+                            <i class="fab fa-spotify"></i>
+                            <span>Spotify</span>
+                        </a>
+                        <a class="nav-item" data-page="platform-twitch" href="#">
+                            <i class="fab fa-twitch"></i>
+                            <span>Twitch</span>
+                        </a>
+                    </div>
+                    <div class="nav-section">
+                        <span class="nav-section-title">SYSTEM</span>
+                        <a class="nav-item" data-page="settings" href="#">
+                            <i class="fas fa-cog"></i>
+                            <span>Settings</span>
+                        </a>
+                        <a class="nav-item" data-page="logs" href="#">
+                            <i class="fas fa-terminal"></i>
+                            <span>Logs</span>
+                        </a>
+                    </div>
+                </div>
+                <div class="sidebar-footer">
+                    <div class="worker-status">
+                        <div class="status-indicator online" id="worker-status-dot"></div>
+                        <div class="status-info">
+                            <span class="status-label" id="worker-name">Worker</span>
+                            <span class="status-detail" id="worker-uptime">Online</span>
+                        </div>
+                    </div>
+                </div>
+            </nav>
+
+            <main class="content" id="content">
+                <div class="page-container" id="page-container">
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="modal-overlay" style="display:none;">
+        <div class="modal" id="modal">
+            <div class="modal-header">
+                <h3 class="modal-title" id="modal-title"></h3>
+                <button class="modal-close" id="modal-close">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body" id="modal-body"></div>
+            <div class="modal-footer" id="modal-footer"></div>
+        </div>
+    </div>
+
+    <div class="toast-container" id="toast-container"></div>
+
+    <div class="context-menu" id="context-menu" style="display:none;"></div>
+
+    <script src="app.js"></script>
+    <script src="pages/dashboard.js"></script>
+    <script src="pages/accounts.js"></script>
+    <script src="pages/tasks.js"></script>
+    <script src="pages/proxies.js"></script>
+    <script src="pages/settings.js"></script>
+    <script src="pages/sms.js"></script>
+    <script src="pages/captcha.js"></script>
+    <script src="pages/logs.js"></script>
+    <script src="pages/platform.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            window.app = new App();
+            window.app.init();
+        });
+    </script>
+</body>
+</html>

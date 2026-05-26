@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SMM Automation Suite - Download Worker</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        :root {
+            --bg-primary: #06060b;
+            --bg-secondary: #0c0c14;
+            --bg-card: #151524;
+            --border-primary: #1e1e35;
+            --text-primary: #e8e8f0;
+            --text-secondary: #8888a8;
+            --accent-primary: #6366f1;
+            --gradient-primary: linear-gradient(135deg, #6366f1, #8b5cf6);
+            --shadow-glow: 0 0 30px rgba(99, 102, 241, 0.3);
+            --font-family: 'Inter', sans-serif;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: var(--font-family); background: var(--bg-primary); color: var(--text-primary); min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding-top: 100px; }
+        .container { max-width: 800px; text-align: center; padding: 40px; }
+        h1 { font-size: 3.5rem; font-weight: 800; line-height: 1.1; margin-bottom: 20px; background: var(--gradient-primary); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        p { font-size: 1.2rem; color: var(--text-secondary); margin-bottom: 40px; line-height: 1.5; }
+        .btn-download { display: inline-flex; align-items: center; gap: 12px; background: var(--gradient-primary); color: white; text-decoration: none; padding: 18px 40px; border-radius: 99px; font-size: 1.2rem; font-weight: 700; box-shadow: var(--shadow-glow); transition: transform 0.2s, box-shadow 0.2s; }
+        .btn-download:hover { transform: translateY(-2px); box-shadow: 0 0 50px rgba(99, 102, 241, 0.5); }
+        .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 24px; margin-top: 80px; text-align: left; }
+        .feature-card { background: var(--bg-card); border: 1px solid var(--border-primary); padding: 24px; border-radius: 16px; }
+        .feature-icon { width: 48px; height: 48px; background: rgba(99, 102, 241, 0.1); color: var(--accent-primary); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 24px; margin-bottom: 16px; }
+        .feature-title { font-size: 1.2rem; font-weight: 700; margin-bottom: 8px; }
+        .feature-desc { color: var(--text-secondary); line-height: 1.5; font-size: 0.95rem; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Professional SMM Automation Suite</h1>
+        <p>The ultimate desktop worker for automating YouTube, Instagram, Telegram, Roblox, and more. Featuring proxy rotation, stealth browsing, and AI captcha solving.</p>
+        
+        <a href="https://github.com/USERNAME/REPO/releases/latest/download/SMM.Service.exe" class="btn-download">
+            <i class="fab fa-windows" style="font-size: 1.5rem;"></i>
+            Download for Windows
+        </a>
+        <div style="margin-top: 16px; color: var(--text-secondary); font-size: 0.9rem;">v1.0.0 | ~120MB</div>
+
+        <div class="features">
+            <div class="feature-card">
+                <div class="feature-icon"><i class="fas fa-shield-alt"></i></div>
+                <div class="feature-title">Anti-Detect Engine</div>
+                <div class="feature-desc">Utilizes advanced Playwright stealth patches to bypass modern bot detection systems.</div>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon"><i class="fas fa-network-wired"></i></div>
+                <div class="feature-title">Smart Proxy Rotation</div>
+                <div class="feature-desc">Assigns sticky IP addresses to individual accounts to prevent chain-bans.</div>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon"><i class="fas fa-robot"></i></div>
+                <div class="feature-title">Local AI Solving</div>
+                <div class="feature-desc">Solves hCaptcha and reCAPTCHA locally without paying for third-party API services.</div>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon"><i class="fas fa-sms"></i></div>
+                <div class="feature-title">Free SMS Verification</div>
+                <div class="feature-desc">Automatically scrapes public SMS sites to verify new Google and social accounts.</div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
