@@ -180,8 +180,8 @@ async function runCreateAccounts(task, platformModule, paths, progressCallback) 
                 task.logs.push(`[OK] Created: ${createdAccName}`);
             } else {
                 task.failed = (task.failed || 0) + 1;
-                task.logs.push(`[ERROR] Account creation failed: ${result.error || 'Blocked by Anti-Bot / Needs API Key'}`);
-                return; // Stop execution for this specific task
+                task.logs.push(`[ERROR] Account creation failed, skipping to next... Reason: ${result.error || 'Blocked by Anti-Bot'}`);
+                continue; // Skip to the next iteration (Volume Strategy)
             }
 
             const accountObj = {

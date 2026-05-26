@@ -1,115 +1,91 @@
 const axios = require('axios');
-const fs = require('fs');
-const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 
-const activeNumbers = new Map();
-
-// Load SMS-Activate API Key
-function getApiKey() {
-    try {
-        const configPath = path.join(process.env.APPDATA || process.env.HOME, 'smm-data', 'settings.json');
-        if (fs.existsSync(configPath)) {
-            const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-            return config.smsApiKey || null;
-        }
-    } catch (e) {}
-    return null;
-}
+const activeEmails = new Map();
 
 function getProviders() {
     return [
-        { id: 'sms-activate', name: 'SMS-Activate.org (PAID)' }
+        { id: '1secmail', name: '1SecMail (100% FREE Temp Mail)' }
     ];
 }
 
-async function getNumber(providerId, country = '0', service = 'ig') {
-    const apiKey = getApiKey();
-    if (!apiKey) return { success: false, error: 'SMS_API_KEY_MISSING' };
-
+async function getNumber(providerId, country = '0', service = 'all') { // Kept 'getNumber' name for compatibility, but it gets an EMAIL
     try {
-        // SMS Activate API: getNumberV2 or getNumber
-        const res = await axios.get(`https://api.sms-activate.org/stubs/handler_api.php?api_key=${apiKey}&action=getNumber&service=${service}&country=${country}`);
-        const data = res.data;
-        
-        if (data.includes('ACCESS_NUMBER')) {
-            const parts = data.split(':');
-            const activationId = parts[1];
-            const phoneNumber = parts[2];
+        const res = await axios.get('https://www.1secmail.com/api/v1/?action=genRandomMailbox&count=1');
+        if (res.data && res.data.length > 0) {
+            const email = res.data[0];
+            const [login, domain] = email.split('@');
             
             const id = uuidv4();
-            activeNumbers.set(id, {
-                activationId: activationId,
-                number: '+' + phoneNumber,
+            activeEmails.set(id, {
+                login,
+                domain,
+                number: email, // use 'number' property name for compatibility
                 createdAt: Date.now()
             });
             
-            return { success: true, number: '+' + phoneNumber, id: id };
-        } else {
-            return { success: false, error: `SMS-Activate Error: ${data}` };
+            return { success: true, number: email, id: id };
         }
-    } catch(e) {
-        return { success: false, error: 'Failed to contact SMS API: ' + e.message };
+        return { success: false, error: 'Failed to generate 1secmail' };
+    } catch (e) {
+        return { success: false, error: e.message };
     }
 }
 
-async function checkSms(providerId, numberId) {
-    const numberInfo = activeNumbers.get(numberId);
-    if (!numberInfo) return { success: false, error: 'Number session expired' };
-
-    const apiKey = getApiKey();
-    if (!apiKey) return { success: false, error: 'SMS_API_KEY_MISSING' };
+async function checkSms(providerId, numberId) { // Checks email instead of SMS
+    const emailInfo = activeEmails.get(numberId);
+    if (!emailInfo) return { success: false, error: 'Email session expired' };
 
     try {
-        const res = await axios.get(`https://api.sms-activate.org/stubs/handler_api.php?api_key=${apiKey}&action=getStatus&id=${numberInfo.activationId}`);
-        const data = res.data;
+        const res = await axios.get(`https://www.1secmail.com/api/v1/?action=getMessages&login=${emailInfo.login}&domain=${emailInfo.domain}`);
+        const messages = res.data;
         
-        if (data.startsWith('STATUS_OK')) {
-            const code = data.split(':')[1];
+        if (messages && messages.length > 0) {
+            // Get the first (latest) message body
+            const msgId = messages[0].id;
+            const msgRes = await axios.get(`https://www.1secmail.com/api/v1/?action=readMessage&login=${emailInfo.login}&domain=${emailInfo.domain}&id=${msgId}`);
+            
+            const textBody = msgRes.data.textBody || msgRes.data.htmlBody || messages[0].subject;
+            
+            // Basic regex to find verification codes (4 to 8 digits)
+            const codeMatch = textBody.match(/\b\d{4,8}\b/);
+            const code = codeMatch ? codeMatch[0] : null;
+
             return {
                 success: true,
                 messages: [
-                    { from: 'SMS-Activate', time: new Date().toLocaleTimeString(), body: code }
+                    { 
+                        from: messages[0].from, 
+                        time: messages[0].date, 
+                        body: textBody 
+                    }
                 ],
-                code: code
-            };
-        } else if (data === 'STATUS_WAIT_CODE') {
-            return {
-                success: true,
-                messages: [
-                    { from: 'System', time: new Date().toLocaleTimeString(), body: `Waiting for SMS on ${numberInfo.number}...` }
-                ]
+                code: code // Extracted code if found
             };
         } else {
-            return { success: false, error: `Status: ${data}` };
+            return {
+                success: true,
+                messages: [
+                    { from: 'System', time: new Date().toLocaleTimeString(), body: `Waiting for Verification Code on ${emailInfo.number}...` }
+                ]
+            };
         }
     } catch(e) {
         return { success: false, error: e.message };
     }
 }
 
-async function releaseNumber(numberId) {
-    const numberInfo = activeNumbers.get(numberId);
-    if (!numberInfo) return { success: true };
-
-    const apiKey = getApiKey();
-    if (apiKey) {
-        try {
-            // Cancel activation (status 8)
-            await axios.get(`https://api.sms-activate.org/stubs/handler_api.php?api_key=${apiKey}&action=setStatus&status=8&id=${numberInfo.activationId}`);
-        } catch(e) {}
-    }
-    
-    activeNumbers.delete(numberId);
+function releaseNumber(numberId) {
+    activeEmails.delete(numberId);
     return { success: true };
 }
 
 // Cleanup old activation requests
 setInterval(() => {
     const now = Date.now();
-    for (const [id, info] of activeNumbers.entries()) {
-        if (now - info.createdAt > 1200000) { // 20 minutes limit on SMS-Activate
-            releaseNumber(id);
+    for (const [id, info] of activeEmails.entries()) {
+        if (now - info.createdAt > 3600000) { // 1 Hour limit on temp mail
+            activeEmails.delete(id);
         }
     }
 }, 60000);
