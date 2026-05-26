@@ -11,28 +11,28 @@
     "pack": "electron-builder --dir"
   },
   "dependencies": {
-    "axios": "^1.7.9",
-    "cheerio": "^1.0.0",
-    "crypto-js": "^4.2.0",
-    "form-data": "^4.0.1",
-    "http-proxy-agent": "^7.0.2",
-    "https-proxy-agent": "^7.0.6",
-    "jimp": "^1.6.0",
-    "node-fetch": "^3.3.2",
     "playwright": "^1.52.0",
     "playwright-extra": "^4.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "axios": "^1.7.9",
+    "cheerio": "^1.0.0",
     "sharp": "^0.33.5",
-    "socks-proxy-agent": "^8.0.5",
-    "tesseract.js": "^5.1.1",
-    "tough-cookie": "^5.1.2",
     "uuid": "^11.1.0",
-    "ws": "^8.18.0"
+    "ws": "^8.18.0",
+    "socks-proxy-agent": "^8.0.5",
+    "https-proxy-agent": "^7.0.6",
+    "http-proxy-agent": "^7.0.2",
+    "node-fetch": "^3.3.2",
+    "tough-cookie": "^5.1.2",
+    "tesseract.js": "^5.1.1",
+    "jimp": "^1.6.0",
+    "form-data": "^4.0.1",
+    "crypto-js": "^4.2.0"
   },
   "devDependencies": {
     "electron": "^34.3.0",
     "electron-builder": "^25.1.8",
-    "png-to-ico": "^3.0.1"
+    "png-to-ico": "^2.1.1"
   },
   "build": {
     "appId": "com.smm.service",
@@ -43,8 +43,7 @@
     "win": {
       "target": [
         "nsis"
-      ],
-      "icon": "assets/icon.ico"
+      ]
     },
     "nsis": {
       "oneClick": false,
