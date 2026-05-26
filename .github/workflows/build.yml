@@ -3,8 +3,6 @@ name: Build SMM Service
 on:
   push:
     branches: [main]
-    tags:
-      - 'v*'
   workflow_dispatch:
 
 jobs:
@@ -40,10 +38,11 @@ jobs:
           path: dist/*.exe
           retention-days: 30
 
-      - name: Create Release
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Release Latest
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: SMM Service v1.0.${{ github.run_number }}
           files: dist/*.exe
           draft: false
           prerelease: false
