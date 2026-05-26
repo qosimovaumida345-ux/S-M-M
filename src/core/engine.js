@@ -174,28 +174,23 @@ async function runCreateAccounts(task, platformModule, paths, progressCallback) 
         try {
             const result = await platformModule.executeAction('create-account', null, task, proxy, paths);
 
-            // Enhanced Smart Fallback: If real creation is blocked by intense anti-bot, generate it offline natively to keep workflow running
-            const accountToSave = result.account || {
-                username: `${task.platform}_user_${Math.random().toString(36).substring(2, 8)}`,
-                password: `AutoPass!${Math.random().toString(36).substring(2, 10)}`,
-                email: `auto_${Math.random().toString(36).substring(2, 10)}@example.com`
-            };
-
             if (result.success) {
                 task.completed = (task.completed || 0) + 1;
-                task.logs.push(`[OK] Created: ${accountToSave.username || accountToSave.email}`);
+                const createdAccName = (result.account && (result.account.username || result.account.email)) ? (result.account.username || result.account.email) : 'Account';
+                task.logs.push(`[OK] Created: ${createdAccName}`);
             } else {
-                task.completed = (task.completed || 0) + 1; // Mark as visually completed to maintain SMM layout workflow
-                task.logs.push(`[WARN] Captcha triggered. Saved via Offline Native Generator: ${accountToSave.username}`);
+                task.failed = (task.failed || 0) + 1;
+                task.logs.push(`[ERROR] Account creation failed: ${result.error || 'Blocked by Anti-Bot / Needs API Key'}`);
+                return; // Stop execution for this specific task
             }
 
             const accountObj = {
                 id: uuidv4(),
                 platform: task.platform,
-                username: accountToSave.username || '',
-                password: accountToSave.password || '',
-                email: accountToSave.email || '',
-                phone: accountToSave.phone || '',
+                username: result.account.username || '',
+                password: result.account.password || '',
+                email: result.account.email || '',
+                phone: result.account.phone || '',
                 proxy: proxy ? `${proxy.host}:${proxy.port}` : null,
                 status: 'active',
                 createdAt: new Date().toISOString(),
