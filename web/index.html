@@ -3,71 +3,214 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SMM Automation Suite - Download Worker</title>
+    <title>SMM Nexus - Professional Anti-Bot Automation Suite</title>
+    <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <style>
-        :root {
-            --bg-primary: #06060b;
-            --bg-secondary: #0c0c14;
-            --bg-card: #151524;
-            --border-primary: #1e1e35;
-            --text-primary: #e8e8f0;
-            --text-secondary: #8888a8;
-            --accent-primary: #6366f1;
-            --gradient-primary: linear-gradient(135deg, #6366f1, #8b5cf6);
-            --shadow-glow: 0 0 30px rgba(99, 102, 241, 0.3);
-            --font-family: 'Inter', sans-serif;
-        }
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: var(--font-family); background: var(--bg-primary); color: var(--text-primary); min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding-top: 100px; }
-        .container { max-width: 800px; text-align: center; padding: 40px; }
-        h1 { font-size: 3.5rem; font-weight: 800; line-height: 1.1; margin-bottom: 20px; background: var(--gradient-primary); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        p { font-size: 1.2rem; color: var(--text-secondary); margin-bottom: 40px; line-height: 1.5; }
-        .btn-download { display: inline-flex; align-items: center; gap: 12px; background: var(--gradient-primary); color: white; text-decoration: none; padding: 18px 40px; border-radius: 99px; font-size: 1.2rem; font-weight: 700; box-shadow: var(--shadow-glow); transition: transform 0.2s, box-shadow 0.2s; }
-        .btn-download:hover { transform: translateY(-2px); box-shadow: 0 0 50px rgba(99, 102, 241, 0.5); }
-        .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 24px; margin-top: 80px; text-align: left; }
-        .feature-card { background: var(--bg-card); border: 1px solid var(--border-primary); padding: 24px; border-radius: 16px; }
-        .feature-icon { width: 48px; height: 48px; background: rgba(99, 102, 241, 0.1); color: var(--accent-primary); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 24px; margin-bottom: 16px; }
-        .feature-title { font-size: 1.2rem; font-weight: 700; margin-bottom: 8px; }
-        .feature-desc { color: var(--text-secondary); line-height: 1.5; font-size: 0.95rem; }
-    </style>
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
-    <div class="container">
-        <h1>Professional SMM Automation Suite</h1>
-        <p>The ultimate desktop worker for automating YouTube, Instagram, Telegram, Roblox, and more. Featuring proxy rotation, stealth browsing, and AI captcha solving.</p>
-        
-        <a href="https://github.com/qosimovaumida345-ux/S-M-M/releases/latest" class="btn-download">
-            <i class="fab fa-windows" style="font-size: 1.5rem;"></i>
-            Download for Windows
-        </a>
-        <div style="margin-top: 16px; color: var(--text-secondary); font-size: 0.9rem;">v1.0.0 | ~120MB</div>
 
-        <div class="features">
-            <div class="feature-card">
-                <div class="feature-icon"><i class="fas fa-shield-alt"></i></div>
-                <div class="feature-title">Anti-Detect Engine</div>
-                <div class="feature-desc">Utilizes advanced Playwright stealth patches to bypass modern bot detection systems.</div>
+    <!-- Dynamic Background Elements -->
+    <div class="bg-blur blur-magenta"></div>
+    <div class="bg-blur blur-blue"></div>
+    <div class="grid-overlay"></div>
+
+    <!-- Header Navigation -->
+    <header class="navbar">
+        <div class="nav-container">
+            <div class="logo">
+                <i class="fa-solid fa-hexagon-nodes"></i>
+                <span>SMM NEXUS</span>
             </div>
-            <div class="feature-card">
-                <div class="feature-icon"><i class="fas fa-network-wired"></i></div>
-                <div class="feature-title">Smart Proxy Rotation</div>
-                <div class="feature-desc">Assigns sticky IP addresses to individual accounts to prevent chain-bans.</div>
+            <nav class="nav-links">
+                <a href="#features">Features</a>
+                <a href="#platforms">Platforms</a>
+                <a href="#pricing">Pricing</a>
+            </nav>
+            <div class="nav-cta">
+                <a href="#download" class="btn btn-outline">Client Login</a>
+                <a href="https://github.com/qosimovaumida345-ux/S-M-M/releases/latest" class="btn btn-glow">Download Worker (.exe)</a>
             </div>
-            <div class="feature-card">
-                <div class="feature-icon"><i class="fas fa-robot"></i></div>
-                <div class="feature-title">Local AI Solving</div>
-                <div class="feature-desc">Solves hCaptcha and reCAPTCHA locally without paying for third-party API services.</div>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="hero-container">
+            <div class="hero-content">
+                <div class="badge fade-in-up" style="animation-delay: 0.1s">
+                    <span class="pulse-dot"></span> Next-Gen Automation Live v2.0
+                </div>
+                <h1 class="fade-in-up" style="animation-delay: 0.2s">
+                    Dominate Algorithms.<br>
+                    <span class="gradient-text type-effect">Zero Exceptions.</span>
+                </h1>
+                <p class="fade-in-up" style="animation-delay: 0.3s">
+                    Deploy 11+ language-agnostic AI bots that natively bypass Captchas, simulate human interactions, and secure accounts without the risk of chain bans.
+                </p>
+                <div class="hero-buttons fade-in-up" style="animation-delay: 0.4s">
+                    <a href="https://github.com/qosimovaumida345-ux/S-M-M/releases/latest" class="btn btn-glow btn-large">
+                        <i class="fab fa-windows"></i> Download Engine
+                    </a>
+                    <a href="#demo" class="btn btn-glass btn-large">
+                        <i class="fa-solid fa-play"></i> Watch Action
+                    </a>
+                </div>
+                <div class="hero-stats fade-in-up" style="animation-delay: 0.5s">
+                    <div class="stat"><strong>11</strong> Platforms</div>
+                    <div class="divider"></div>
+                    <div class="stat"><strong>100%</strong> Ghost Protocol</div>
+                    <div class="divider"></div>
+                    <div class="stat"><strong>Unlimited</strong> Proxies</div>
+                </div>
             </div>
-            <div class="feature-card">
-                <div class="feature-icon"><i class="fas fa-sms"></i></div>
-                <div class="feature-title">Free SMS Verification</div>
-                <div class="feature-desc">Automatically scrapes public SMS sites to verify new Google and social accounts.</div>
+            
+            <!-- Live Terminal Status Panel -->
+            <div class="hero-visual fade-in-up" style="animation-delay: 0.6s">
+                <div class="terminal-panel glass-card">
+                    <div class="terminal-header">
+                        <div class="mac-btns">
+                            <span class="btn-red"></span>
+                            <span class="btn-yellow"></span>
+                            <span class="btn-green"></span>
+                        </div>
+                        <div class="terminal-title">nexus-core-status</div>
+                    </div>
+                    <div class="terminal-body" id="terminal-body">
+                        <!-- Filled by JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Platforms Infinite Marquee -->
+    <div class="marquee-section" id="platforms">
+        <p class="marquee-title">NATIVELY SUPPORTED PLATFORMS</p>
+        <div class="marquee-wrapper">
+            <div class="marquee-content" id="marquee-content">
+                <!-- Filled by JS with SVGs to ensure double infinite scroll -->
             </div>
         </div>
     </div>
+
+    <!-- Core Features Section -->
+    <section class="features" id="features">
+        <div class="section-header reveal">
+            <h2 class="gradient-text">Engineered for Stealth.</h2>
+            <p>Every algorithm interaction is structured perfectly to simulate real human behavior worldwide.</p>
+        </div>
+        
+        <div class="features-grid">
+            <div class="feature-card glass-card reveal hover-tilt">
+                <div class="feature-icon"><i class="fa-solid fa-shield-cat"></i></div>
+                <h3>Anti-Detect Web Engine</h3>
+                <p>Playwright stealth patches hide webdriver flags. Emulates unique residential fingerprints preventing initial ban triggers.</p>
+            </div>
+            
+            <div class="feature-card glass-card reveal hover-tilt" style="transition-delay: 100ms;">
+                <div class="feature-icon"><i class="fa-solid fa-globe"></i></div>
+                <h3>Language Agnostic</h3>
+                <p>Bots operate through back-end data-testid / DOM attributes instead of frontend UI text. Works in all country VPNs flawlessly.</p>
+            </div>
+
+            <div class="feature-card glass-card reveal hover-tilt" style="transition-delay: 200ms;">
+                <div class="feature-icon"><i class="fa-solid fa-robot"></i></div>
+                <h3>Local Captcha AI Solver</h3>
+                <p>Bypasses hCaptcha and reCAPTCHA locally using neural networks. Save thousands of dollars on third-party solver APIs.</p>
+            </div>
+
+            <div class="feature-card glass-card reveal hover-tilt">
+                <div class="feature-icon"><i class="fa-solid fa-envelope-open-text"></i></div>
+                <h3>Automated SMS Verification</h3>
+                <p>Deploys integrated web-scrapers that pull public active mobile numbers to verify challenging accounts on-the-go.</p>
+            </div>
+
+            <div class="feature-card glass-card reveal hover-tilt" style="transition-delay: 100ms;">
+                <div class="feature-icon"><i class="fa-solid fa-network-wired"></i></div>
+                <h3>P2P Proxy Rotation</h3>
+                <p>Inject proxy credentials or let the proxy manager automatically scan for alive connections to ensure sticky rotating IPs.</p>
+            </div>
+
+            <div class="feature-card glass-card reveal hover-tilt" style="transition-delay: 200ms;">
+                <div class="feature-icon"><i class="fa-solid fa-hard-drive"></i></div>
+                <h3>Zero Server Costs</h3>
+                <p>Run locally as a Windows Desktop Service tracking local accounts and task state files. Total offline persistence.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Pricing Section -->
+    <section class="pricing" id="pricing">
+         <div class="section-header reveal">
+            <h2 class="gradient-text">Unleash the Power.</h2>
+            <p>Choose the tier that rapidly expands your social influence.</p>
+        </div>
+        <div class="pricing-grid">
+            <div class="pricing-card glass-card reveal">
+                <h4>Starter Automator</h4>
+                <div class="price">Free</div>
+                <p class="price-desc">Great for testing local workflows.</p>
+                <ul class="pricing-features">
+                    <li><i class="fa-solid fa-check text-green"></i> Local Account Creation</li>
+                    <li><i class="fa-solid fa-check text-green"></i> 3 Concurrent Threads</li>
+                    <li><i class="fa-solid fa-check text-green"></i> Basic Anti-Detect</li>
+                    <li><i class="fa-solid fa-xmark text-red"></i> Manual Captchas</li>
+                </ul>
+                <a href="#download" class="btn btn-outline btn-full">Download Now</a>
+            </div>
+
+            <div class="pricing-card glass-card premium-card reveal">
+                <div class="popular-tag">MOST POPULAR</div>
+                <h4>Nexus Pro Edition</h4>
+                <div class="price">$49<span class="period">/mo</span></div>
+                <p class="price-desc">For serious SMM agencies.</p>
+                <ul class="pricing-features">
+                    <li><i class="fa-solid fa-check text-green"></i> All Top 11 Platforms</li>
+                    <li><i class="fa-solid fa-check text-green"></i> Unlimited PC Threads</li>
+                    <li><i class="fa-solid fa-check text-green"></i> Native AI Captcha Solver</li>
+                    <li><i class="fa-solid fa-check text-green"></i> Sticky IP Management</li>
+                    <li><i class="fa-solid fa-check text-green"></i> SMS Web Scraper Auto</li>
+                </ul>
+                <a href="#buy" class="btn btn-glow btn-full">Upgrade Engine</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="footer-content">
+            <div class="footer-logo">
+                <i class="fa-solid fa-hexagon-nodes"></i>
+                <span>SMM NEXUS</span>
+                <p>Your local social fortress.</p>
+            </div>
+            <div class="footer-links">
+                <div>
+                    <strong>Product</strong>
+                    <a href="#">Download Node</a>
+                    <a href="#">Pricing</a>
+                    <a href="#">API Docs</a>
+                </div>
+                <div>
+                    <strong>Support</strong>
+                    <a href="#">Discord Server</a>
+                    <a href="#">Open Issue</a>
+                    <a href="#">Contact Admin</a>
+                </div>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            &copy; 2026 SMM Nexus Inc. All Automation Rights Reserved.
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="./app.js"></script>
 </body>
 </html>
