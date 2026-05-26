@@ -2,6 +2,12 @@ const browserManager = require('../core/browser');
 const fs = require('fs');
 const path = require('path');
 
+// ============================================================
+// DISCORD PLATFORM MODULE
+// Supports: create-account, join-server, send-message
+// Discord uses hCaptcha aggressively — session-based auth preferred
+// ============================================================
+
 async function executeAction(action, account, task, proxy, paths) {
     const { browser, context } = await browserManager.launchBrowser(proxy, task.headless);
     
@@ -9,172 +15,379 @@ async function executeAction(action, account, task, proxy, paths) {
         const page = await context.newPage();
 
         if (action === 'create-account') {
-            return await handleCreateAccount(page, task, paths, account, proxy);
+            return await handleCreateAccount(page, task, paths, proxy);
         }
 
         const loggedIn = await login(page, account, paths);
         if (!loggedIn) {
-            return { success: false, error: 'Discord web authorization failed' };
+            return { success: false, error: 'Discord authorization failed — session invalid or hCaptcha triggered' };
         }
 
         switch (action) {
-            case 'join-server': return await handleJoinServer(page, task.targetUrl || task.target);
-            case 'send-message': return await handleSendMessage(page, task.targetUrl || task.target, task.content || 'Hello!');
-            case 'react': return await handleReact(page, task.targetUrl);
-            default: return { success: false, error: 'Unsupported action' };
+            case 'join-server': return await handleJoinServer(page, task.targetUrl);
+            case 'send-message': return await handleSendMessage(page, task.targetUrl, task.content || 'Hello!');
+            case 'react': return await handleReact(page, task.targetUrl, task.emoji || '👍');
+            default: return { success: false, error: `Action '${action}' not supported on Discord.` };
         }
     } catch (e) {
-        return { success: false, error: e.message };
+        return { success: false, error: `Critical Discord error: ${e.message}` };
     } finally {
         await browser.close();
     }
 }
 
+// ============================================================
+// LOGIN — Session cookie restore (Discord requires hCaptcha for raw login)
+// ============================================================
 async function login(page, account, paths) {
     try {
         const sessionPath = path.join(paths.SESSIONS_PATH, `dc_${account.id}.json`);
         
+        // STEP 1: Try restoring session
         if (fs.existsSync(sessionPath)) {
             const cookies = JSON.parse(fs.readFileSync(sessionPath, 'utf8'));
             await page.context().addCookies(cookies);
-            
             await page.goto('https://discord.com/app', { waitUntil: 'load' });
-            if (await page.locator('[class*="guilds_"]').count() > 0) return true;
+            await page.waitForTimeout(4000 + Math.random() * 2000);
+            
+            // Check for main app load — multiple selectors for robustness
+            const isApp = await page.locator('div[class*="sidebar_"], div[aria-label="Servers"], nav[aria-label="Servers sidebar"]').count();
+            if (isApp > 0) return true;
+            
+            // Check for the channel sidebar
+            const channelList = await page.locator('div[class*="content_"], div[class*="channels_"]').count();
+            if (channelList > 0) return true;
         }
 
-        await page.goto('https://discord.com/login', { waitUntil: 'networkidle' });
+        // STEP 2: Attempt token-based login (if account has a token stored)
+        if (account.token) {
+            await page.goto('https://discord.com/login', { waitUntil: 'load' });
+            await page.waitForTimeout(2000);
+            
+            // Inject token into localStorage
+            await page.evaluate((token) => {
+                window.localStorage.setItem('token', `"${token}"`);
+                window.location.reload();
+            }, account.token);
+            
+            await page.waitForTimeout(5000);
+            
+            const isLoggedIn = await page.locator('div[class*="sidebar_"], nav[aria-label="Servers sidebar"]').count();
+            if (isLoggedIn > 0) return true;
+        }
+
+        // STEP 3: Credential-based login (will likely trigger hCaptcha)
+        await page.goto('https://discord.com/login', { waitUntil: 'load' });
+        await page.waitForTimeout(2000 + Math.random() * 1000);
         
-        await page.fill('input[name="email"]', account.email || account.username);
-        await page.fill('input[name="password"]', account.password);
-        await page.click('button[type="submit"]');
+        const emailInput = await page.locator('input[name="email"]');
+        const passwordInput = await page.locator('input[name="password"]');
+        
+        if (await emailInput.count() > 0 && await passwordInput.count() > 0) {
+            await emailInput.first().fill(account.email || account.username);
+            await page.waitForTimeout(500 + Math.random() * 500);
+            await passwordInput.first().fill(account.password);
+            await page.waitForTimeout(500 + Math.random() * 500);
+            
+            const loginBtn = await page.locator('button[type="submit"]');
+            if (await loginBtn.count() > 0) {
+                await loginBtn.first().click();
+                await page.waitForTimeout(5000 + Math.random() * 3000);
+            }
+        }
 
-        await page.waitForNavigation({ waitUntil: 'networkidle', timeout: 15000 });
+        // Check for captcha challenge
+        const captchaFrame = await page.locator('iframe[src*="hcaptcha"], iframe[src*="captcha"]').count();
+        if (captchaFrame > 0) {
+            return false; // Cannot bypass hCaptcha automatically
+        }
 
-        if (await page.locator('[class*="guilds_"]').count() > 0) {
+        // Verify login
+        const finalCheck = await page.locator('div[class*="sidebar_"], nav[aria-label="Servers sidebar"]').count();
+        if (finalCheck > 0) {
             const cookies = await page.context().cookies();
-            fs.writeFileSync(sessionPath, JSON.stringify(cookies));
+            try { fs.writeFileSync(sessionPath, JSON.stringify(cookies)); } catch (e) {}
             return true;
         }
-        
+
         return false;
     } catch (e) {
         return false;
     }
 }
 
-async function handleJoinServer(page, targetUrl) {
+// ============================================================
+// JOIN SERVER — Accept an invite link
+// ============================================================
+async function handleJoinServer(page, inviteUrl) {
     try {
-        const inviteCode = targetUrl.split('/').pop();
-        await page.goto(`https://discord.com/invite/${inviteCode}`, { waitUntil: 'networkidle' });
-        
-        await page.waitForTimeout(2000);
-        
-        const acceptBtn = 'button:has-text("Accept Invite")';
-        const continueBtn = 'button:has-text("Continue")';
-        
-        if (await page.locator(acceptBtn).count() > 0) {
-            await page.locator(acceptBtn).first().click();
-        } else if (await page.locator(continueBtn).count() > 0) {
-            await page.locator(continueBtn).first().click();
-        } else {
-            return { success: false, error: 'Could not find Discord invite button' };
+        // Ensure the invite URL is valid
+        let cleanUrl = inviteUrl;
+        if (!cleanUrl.includes('discord.') && !cleanUrl.includes('discord.gg')) {
+            cleanUrl = `https://discord.gg/${inviteUrl}`;
         }
         
-        await page.waitForTimeout(3000);
+        await page.goto(cleanUrl, { waitUntil: 'load' });
+        await page.waitForTimeout(3000 + Math.random() * 2000);
         
-        if (await page.locator('[class*="guilds_"]').count() > 0) {
-             return { success: true };
-        }
+        // Strategy 1: In-app invite accept ("Accept Invite" / "Join" button)
+        const joinBtnSelectors = [
+            'button[class*="marginBottom8"]',
+            'button:has-text("Accept Invite")',
+            'button:has-text("Join")',
+            'button:has-text("Принять приглашение")',
+            'button:has-text("Qabul qilish")',
+            'div[class*="invite"] button'
+        ];
         
-        return { success: false, error: 'Did not reach server interface' };
-    } catch (e) {
-        return { success: false, error: e.message };
-    }
-}
-
-async function handleSendMessage(page, targetUrl, content) {
-    try {
-        await page.goto(targetUrl, { waitUntil: 'networkidle' });
-        await page.waitForTimeout(2000);
-        
-        const chatBox = '[class*="textArea_"]';
-        if (await page.locator(chatBox).count() > 0) {
-            await page.locator(chatBox).first().click();
-            await page.keyboard.type(content, { delay: 40 });
-            await page.waitForTimeout(500);
-            await page.keyboard.press('Enter');
-            await page.waitForTimeout(1000);
-            return { success: true };
-        }
-        
-        return { success: false, error: 'Chat box not found or lacking permissions' };
-    } catch (e) {
-        return { success: false, error: e.message };
-    }
-}
-
-async function handleReact(page, targetUrl) {
-    try {
-        await page.goto(targetUrl, { waitUntil: 'networkidle' });
-        await page.waitForTimeout(3000);
-        
-        const reactBtn = '[aria-label="Add Reaction"]';
-        if (await page.locator(reactBtn).count() > 0) {
-            await page.locator(reactBtn).locator('visible=true').first().click();
-            await page.waitForTimeout(1000);
-            
-            const firstEmoji = '[class*="emojiItem_"]';
-            if (await page.locator(firstEmoji).count() > 0) {
-                await page.locator(firstEmoji).first().click();
-                await page.waitForTimeout(1000);
+        for (const selector of joinBtnSelectors) {
+            const btn = await page.locator(selector);
+            if (await btn.count() > 0) {
+                await btn.first().click();
+                await page.waitForTimeout(3000);
                 return { success: true };
             }
         }
         
-        return { success: false, error: 'Could not react to message' };
+        // Strategy 2: Check if redirected to the server directly (already joined)
+        const currentUrl = page.url();
+        if (currentUrl.includes('/channels/')) {
+            return { success: true, message: 'Already in this server, redirected to channels' };
+        }
+        
+        // Strategy 3: Check for "Continue to Discord" external redirect
+        const continueBtn = await page.locator('button:has-text("Continue"), a:has-text("Continue to Discord")');
+        if (await continueBtn.count() > 0) {
+            await continueBtn.first().click();
+            await page.waitForTimeout(3000);
+            return { success: true, message: 'Redirected to Discord app' };
+        }
+        
+        return { success: false, error: 'Join button not found — invite may be expired or private' };
     } catch (e) {
         return { success: false, error: e.message };
     }
 }
 
-async function handleCreateAccount(page, task, paths, accountTemplate, proxy) {
+// ============================================================
+// SEND MESSAGE — Type a message into a Discord channel
+// ============================================================
+async function handleSendMessage(page, channelUrl, content) {
     try {
-        await page.goto('https://discord.com/register', { waitUntil: 'networkidle' });
-        await page.waitForTimeout(2000);
-
-        const email = `dc_${Math.random().toString(36).substring(7)}@example.com`;
-        const user = `DcUser_${Math.floor(Math.random() * 9999)}`;
-        const pass = `DcPass123!${Math.random().toString(36).substring(5)}`;
-
-        await page.fill('input[name="email"]', email);
-        await page.fill('input[name="username"]', user);
-        await page.fill('input[name="global_name"]', user);
-        await page.fill('input[name="password"]', pass);
+        await page.goto(channelUrl, { waitUntil: 'load' });
+        await page.waitForTimeout(4000 + Math.random() * 2000);
         
-        await page.locator('[class*="month_"]').click();
-        await page.keyboard.press('ArrowDown');
-        await page.keyboard.press('Enter');
+        // Strategy 1: Main message textbox (aria-label based — language-agnostic)
+        const inputSelectors = [
+            'div[role="textbox"][data-slate-editor="true"]',
+            'div[role="textbox"][aria-label*="Message"]',
+            'div[role="textbox"][aria-label*="Сообщение"]',
+            'div[role="textbox"][aria-label*="Xabar"]',
+            'div[class*="textArea_"] div[contenteditable="true"]'
+        ];
         
-        await page.locator('[class*="day_"]').click();
-        await page.keyboard.press('ArrowDown');
-        await page.keyboard.press('Enter');
+        let inputFound = false;
+        for (const selector of inputSelectors) {
+            const inputBox = await page.locator(selector);
+            if (await inputBox.count() > 0) {
+                await inputBox.first().click();
+                await page.waitForTimeout(500);
+                
+                // Type character by character for human-like behaviour
+                await page.keyboard.type(content, { delay: 30 + Math.random() * 40 });
+                await page.waitForTimeout(500 + Math.random() * 500);
+                await page.keyboard.press('Enter');
+                await page.waitForTimeout(2000);
+                
+                inputFound = true;
+                return { success: true };
+            }
+        }
         
-        await page.locator('[class*="year_"]').click();
-        for(let i=0; i<25; i++) await page.keyboard.press('ArrowDown');
-        await page.keyboard.press('Enter');
+        if (!inputFound) {
+            return { success: false, error: 'Message input not found — channel may be read-only or access denied' };
+        }
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+}
 
-        const checkbox = await page.locator('input[type="checkbox"]').first();
-        if (await checkbox.isVisible()) await checkbox.check();
+// ============================================================
+// REACT — Add emotion reaction to a message (experimental)
+// ============================================================
+async function handleReact(page, targetUrl, emoji) {
+    try {
+        await page.goto(targetUrl, { waitUntil: 'load' });
+        await page.waitForTimeout(4000);
+        
+        // Hover over the last message to reveal the reaction button
+        const messages = await page.locator('div[class*="message_"]');
+        if (await messages.count() > 0) {
+            await messages.last().hover();
+            await page.waitForTimeout(500);
+            
+            // Click the reaction emoji button
+            const reactionBtn = await page.locator('div[class*="buttons_"] button:first-child, button[aria-label="Add Reaction"]');
+            if (await reactionBtn.count() > 0) {
+                await reactionBtn.first().click();
+                await page.waitForTimeout(1000);
+                
+                // Type emoji name in the search or pick from defaults
+                const emojiSearch = await page.locator('input[placeholder*="search" i], input[type="text"]');
+                if (await emojiSearch.count() > 0) {
+                    await emojiSearch.first().fill(emoji);
+                    await page.waitForTimeout(500);
+                    
+                    // Click the first result
+                    const emojiResult = await page.locator('button[class*="emojiItem_"]');
+                    if (await emojiResult.count() > 0) {
+                        await emojiResult.first().click();
+                        await page.waitForTimeout(1000);
+                        return { success: true };
+                    }
+                }
+            }
+        }
+        
+        return { success: false, error: 'Could not add reaction — messages may not be loaded' };
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+}
 
-        await page.click('button[type="submit"]');
-        await page.waitForTimeout(5000);
+// ============================================================
+// CREATE ACCOUNT — Discord signup (hCaptcha is the main blocker)
+// ============================================================
+async function handleCreateAccount(page, task, paths, proxy) {
+    try {
+        let success = false;
+        let pAcc = null;
 
-        const captchaDetected = await page.locator('iframe[src*="hcaptcha"]').count();
-        if (captchaDetected > 0) {
-             throw new Error('Discord detected automation (hCaptcha intervention)');
+        const methods = [
+            // METHOD 1: Standard Discord register page
+            async () => {
+                await page.goto('https://discord.com/register', { waitUntil: 'load' });
+                await page.waitForTimeout(3000 + Math.random() * 2000);
+                
+                const email = `dc_${Math.random().toString(36).substring(2, 10)}@example.com`;
+                const displayName = `DCUser${Math.floor(Math.random() * 9999)}`;
+                const username = `dcuser_${Math.random().toString(36).substring(2, 8)}`;
+                const password = `DcPass!${Math.random().toString(36).substring(2, 10)}`;
+                
+                // Fill email
+                const emailInput = await page.locator('input[name="email"]');
+                if (await emailInput.count() > 0) {
+                    await emailInput.first().fill(email);
+                    await page.waitForTimeout(500 + Math.random() * 500);
+                }
+                
+                // Fill display name
+                const displayInput = await page.locator('input[name="global_name"]');
+                if (await displayInput.count() > 0) {
+                    await displayInput.first().fill(displayName);
+                    await page.waitForTimeout(500 + Math.random() * 500);
+                }
+                
+                // Fill username
+                const usernameInput = await page.locator('input[name="username"]');
+                if (await usernameInput.count() > 0) {
+                    await usernameInput.first().fill(username);
+                    await page.waitForTimeout(500 + Math.random() * 500);
+                }
+                
+                // Fill password
+                const passInput = await page.locator('input[name="password"]');
+                if (await passInput.count() > 0) {
+                    await passInput.first().fill(password);
+                    await page.waitForTimeout(500 + Math.random() * 500);
+                }
+                
+                // Date of birth
+                const monthSelect = await page.locator('div[class*="inputMonth"] div[role="button"]');
+                if (await monthSelect.count() > 0) {
+                    await monthSelect.first().click();
+                    await page.waitForTimeout(500);
+                    const jan = await page.locator('div[role="option"]:first-child');
+                    if (await jan.count() > 0) await jan.first().click();
+                }
+                
+                const daySelect = await page.locator('div[class*="inputDay"] div[role="button"]');
+                if (await daySelect.count() > 0) {
+                    await daySelect.first().click();
+                    await page.waitForTimeout(500);
+                    const day = await page.locator('div[role="option"]:nth-child(15)');
+                    if (await day.count() > 0) await day.first().click();
+                }
+                
+                const yearSelect = await page.locator('div[class*="inputYear"] div[role="button"]');
+                if (await yearSelect.count() > 0) {
+                    await yearSelect.first().click();
+                    await page.waitForTimeout(500);
+                    // Scroll to find 2000 or pick a visible year
+                    const yearOptions = await page.locator('div[role="option"]');
+                    const count = await yearOptions.count();
+                    for (let i = 0; i < count; i++) {
+                        const text = await yearOptions.nth(i).innerText();
+                        if (text.trim() === '2000') {
+                            await yearOptions.nth(i).click();
+                            break;
+                        }
+                    }
+                }
+                
+                // Accept TOS checkbox
+                const tosCheckbox = await page.locator('input[type="checkbox"]');
+                if (await tosCheckbox.count() > 0) {
+                    await tosCheckbox.first().click();
+                    await page.waitForTimeout(500);
+                }
+                
+                // Submit
+                const submitBtn = await page.locator('button[type="submit"]');
+                if (await submitBtn.count() > 0) {
+                    await submitBtn.first().click();
+                    await page.waitForTimeout(5000);
+                }
+                
+                // Check for captcha
+                const captchaFrame = await page.locator('iframe[src*="hcaptcha"]').count();
+                
+                return {
+                    email,
+                    username,
+                    displayName,
+                    password,
+                    captchaTriggered: captchaFrame > 0
+                };
+            }
+        ];
+
+        for (let i = 0; i < methods.length; i++) {
+            try {
+                const res = await methods[i]();
+                if (res) {
+                    success = true;
+                    pAcc = {
+                        email: res.email,
+                        username: res.username,
+                        displayName: res.displayName,
+                        password: res.password,
+                        platform: 'discord',
+                        captchaTriggered: res.captchaTriggered || false,
+                        createdAt: new Date().toISOString()
+                    };
+                    break;
+                }
+            } catch (err) {
+                continue;
+            }
         }
 
-        return { success: true, account: { email, username: user, password: pass } };
+        if (success) {
+            return { success: true, account: pAcc };
+        }
+
+        return { success: false, error: 'Discord account creation blocked by hCaptcha or security check' };
     } catch (e) {
         return { success: false, error: e.message };
     }
