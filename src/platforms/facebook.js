@@ -47,7 +47,7 @@ async function login(page, account, paths) {
         if (fs.existsSync(sessionPath)) {
             const cookies = JSON.parse(fs.readFileSync(sessionPath, 'utf8'));
             await page.context().addCookies(cookies);
-            await page.goto('https://www.facebook.com/', { waitUntil: 'load' });
+            await page.goto('https://m.facebook.com/', { waitUntil: 'load' });
             await page.waitForTimeout(3000 + Math.random() * 2000);
             
             // Check for logged in indicators
@@ -56,7 +56,7 @@ async function login(page, account, paths) {
         }
 
         // STEP 2: Credential login
-        await page.goto('https://www.facebook.com/login', { waitUntil: 'load' });
+        await page.goto('https://m.facebook.com/login', { waitUntil: 'load' });
         await page.waitForTimeout(2000 + Math.random() * 1000);
         
         const emailInput = await page.locator('input[name="email"], input#email');
@@ -247,12 +247,8 @@ async function handleCreateAccount(page, task, paths, proxy) {
         let pAcc = null;
 
         const methods = [
-            // METHOD 1: Mobile registration (usually simpler, fewer blockades)
+            // METHOD 1: Mobile registration (Virtual Box UA already active)
             async () => {
-                await page.setExtraHTTPHeaders({
-                    'User-Agent': 'Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36'
-                });
-                
                 await page.goto('https://m.facebook.com/reg/', { waitUntil: 'load' });
                 await page.waitForTimeout(3000 + Math.random() * 2000);
                 
@@ -323,7 +319,7 @@ async function handleCreateAccount(page, task, paths, proxy) {
             
             // METHOD 2: Desktop registration
             async () => {
-                await page.goto('https://www.facebook.com/r.php', { waitUntil: 'load' });
+                await page.goto('https://m.facebook.com/r.php', { waitUntil: 'load' });
                 await page.waitForTimeout(3000 + Math.random() * 2000);
                 
                 const fnInput = await page.locator('input[name="firstname"]');

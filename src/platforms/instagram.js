@@ -209,16 +209,18 @@ async function handleCreateAccount(page, task, paths, proxy) {
 
         const methods = [
             async () => {
-                await page.goto('https://www.instagram.com/accounts/emailsignup/', { waitUntil: 'load' });
-                await page.waitForTimeout(3000);
+                // Ensure we navigate to the mobile version
+                await page.goto('https://m.instagram.com/accounts/emailsignup/', { waitUntil: 'load' });
+                await page.waitForTimeout(3000 + Math.random() * 2000);
                 
-                const emailInput = await page.locator('input[name="emailOrPhone"]');
+                // Using less restrictive selectors (works for both m.instagram and www.instagram)
+                const emailInput = await page.locator('input[name="emailOrPhone"], input[type="email"], input[type="tel"]');
                 if (await emailInput.count() > 0) {
                     const tempEmail = `ig_${Math.random().toString(36).substring(7)}@example.com`;
                     await emailInput.first().fill(tempEmail);
                     await page.waitForTimeout(1000);
                     
-                    const nameInput = await page.locator('input[name="fullName"]');
+                    const nameInput = await page.locator('input[name="fullName"], input[aria-label="Full Name"]');
                     if (await nameInput.count() > 0) await nameInput.first().fill('Alex Smith');
                     
                     const userInput = await page.locator('input[name="username"]');
@@ -229,9 +231,10 @@ async function handleCreateAccount(page, task, paths, proxy) {
                     const password = `IgPass!${Math.random().toString(36).substring(7)}`;
                     if (await passInput.count() > 0) await passInput.first().fill(password);
                     
-                    await page.waitForTimeout(1000);
+                    await page.waitForTimeout(1500);
                     
-                    const submitBtn = await page.locator('button[type="submit"]');
+                    // Click SignUp / Next button
+                    const submitBtn = await page.locator('button[type="submit"], div[role="button"]:has-text("Sign up"), div[role="button"]:has-text("Next")');
                     if (await submitBtn.count() > 0) {
                         await submitBtn.first().click();
                         await page.waitForTimeout(5000);

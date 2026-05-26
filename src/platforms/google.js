@@ -41,7 +41,8 @@ async function handleCreateAccount(page, task, paths, accountTemplate, proxy) {
         const methods = [
             // METHOD 1: Standard Google Signup Flow
             async () => {
-                await page.goto('https://accounts.google.com/signup/v2/createaccount?flowName=GlifWebSignIn&flowEntry=SignUp', { waitUntil: 'load' });
+                // Mobile endpoint with reduced anti-bot friction
+                await page.goto('https://accounts.google.com/signup/v2/createaccount?flowName=GlifWebSignIn&flowEntry=SignUp&theme=mn', { waitUntil: 'load' });
                 await page.waitForTimeout(3000 + Math.random() * 2000);
                 
                 // First Name — uses input[name] which is language-agnostic
@@ -149,14 +150,9 @@ async function handleCreateAccount(page, task, paths, accountTemplate, proxy) {
                 };
             },
             
-            // METHOD 2: Google Signup via Mobile UA
+            // METHOD 2: Google Signup via Mobile endpoint (UA already set by Virtual Box)
             async () => {
-                // Override UA to mobile for potentially different (simpler) flow
-                await page.setExtraHTTPHeaders({
-                    'User-Agent': 'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36'
-                });
-                
-                await page.goto('https://accounts.google.com/signup', { waitUntil: 'load' });
+                await page.goto('https://accounts.google.com/signup?theme=mn', { waitUntil: 'load' });
                 await page.waitForTimeout(3000 + Math.random() * 2000);
                 
                 const firstNameInput = await page.locator('input[name="firstName"]');

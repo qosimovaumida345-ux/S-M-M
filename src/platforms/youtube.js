@@ -49,7 +49,7 @@ async function login(page, account, paths) {
         if (fs.existsSync(sessionPath)) {
             const cookies = JSON.parse(fs.readFileSync(sessionPath, 'utf8'));
             await page.context().addCookies(cookies);
-            await page.goto('https://www.youtube.com/', { waitUntil: 'load' });
+            await page.goto('https://m.youtube.com/', { waitUntil: 'load' });
             await page.waitForTimeout(2000 + Math.random() * 1000);
             
             // Check for avatar button (indicates logged in) — stable across all languages
@@ -58,7 +58,7 @@ async function login(page, account, paths) {
         }
 
         // STEP 2: Fresh Google sign-in for YouTube
-        await page.goto('https://accounts.google.com/signin/v2/identifier?service=youtube', { waitUntil: 'load' });
+        await page.goto('https://accounts.google.com/signin/v2/identifier?service=youtube&flowName=GlifWebSignIn&flowEntry=ServiceLogin', { waitUntil: 'load' });
         await page.waitForTimeout(2000 + Math.random() * 1000);
         
         // Email input — Google uses input[type="email"] consistently
@@ -86,7 +86,7 @@ async function login(page, account, paths) {
         }
 
         // Verify login on YouTube
-        await page.goto('https://www.youtube.com/', { waitUntil: 'load' });
+        await page.goto('https://m.youtube.com/', { waitUntil: 'load' });
         await page.waitForTimeout(2000);
         
         const avatarCheck = await page.locator('#avatar-btn, button#avatar-btn').count();
@@ -384,8 +384,9 @@ async function handleCreateAccount(page, task, paths, accountTemplate, proxy) {
         const methods = [
             // METHOD 1: Direct Google account creation
             async () => {
-                await page.goto('https://accounts.google.com/signup/v2/createaccount?flowName=GlifWebSignIn&flowEntry=SignUp', { waitUntil: 'load' });
-                await page.waitForTimeout(2000 + Math.random() * 2000);
+                // Mobile endpoint — reduced captcha friction
+                await page.goto('https://accounts.google.com/signup/v2/createaccount?flowName=GlifWebSignIn&flowEntry=SignUp&theme=mn', { waitUntil: 'load' });
+                await page.waitForTimeout(3000 + Math.random() * 2000);
                 
                 const firstName = firstNames[Math.floor(Math.random() * firstNames.length)];
                 const lastName = lastNames[Math.floor(Math.random() * lastNames.length)];
@@ -455,12 +456,8 @@ async function handleCreateAccount(page, task, paths, accountTemplate, proxy) {
                 };
             },
             
-            // METHOD 2: Mobile YouTube signup
+            // METHOD 2: Mobile YouTube signup (UA already set by Virtual Box layer)
             async () => {
-                await page.setExtraHTTPHeaders({
-                    'User-Agent': 'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36'
-                });
-                
                 await page.goto('https://m.youtube.com/', { waitUntil: 'load' });
                 await page.waitForTimeout(2000 + Math.random() * 1000);
                 
