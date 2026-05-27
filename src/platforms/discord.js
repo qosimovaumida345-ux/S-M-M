@@ -273,7 +273,9 @@ async function handleCreateAccount(page, task, paths, proxy) {
                 await page.goto('https://discord.com/register', { waitUntil: 'load' });
                 await page.waitForTimeout(3000 + Math.random() * 2000);
                 
-                const email = `dc_${Math.random().toString(36).substring(2, 10)}@example.com`;
+                // Generate REAL temporary email
+                const tempEmail = require('../core/temp-email');
+                const { email, login, domain } = await tempEmail.generateEmail('dc');
                 const displayName = `DCUser${Math.floor(Math.random() * 9999)}`;
                 const username = `dcuser_${Math.random().toString(36).substring(2, 8)}`;
                 const password = `DcPass!${Math.random().toString(36).substring(2, 10)}`;
@@ -327,7 +329,6 @@ async function handleCreateAccount(page, task, paths, proxy) {
                 if (await yearSelect.count() > 0) {
                     await yearSelect.first().click();
                     await page.waitForTimeout(500);
-                    // Scroll to find 2000 or pick a visible year
                     const yearOptions = await page.locator('div[role="option"]');
                     const count = await yearOptions.count();
                     for (let i = 0; i < count; i++) {
@@ -359,8 +360,13 @@ async function handleCreateAccount(page, task, paths, proxy) {
                     const captchaSolver = require('../core/captcha-solver');
                     const solveRes = await captchaSolver.solvePlaywrightVisual(page);
                     if (solveRes.success) {
-                        isCaptchaTriggered = false; // Successfully bypassed for free using AI Vision!
+                        isCaptchaTriggered = false;
                     }
+                }
+                
+                // Auto-verify email if account created
+                if (!isCaptchaTriggered) {
+                    await tempEmail.autoVerifyEmail(login, domain, page, 60000);
                 }
                 
                 return {

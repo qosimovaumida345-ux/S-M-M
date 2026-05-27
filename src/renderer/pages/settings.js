@@ -146,6 +146,11 @@ class SettingsPage {
                             <div style="font-size: 12px; color: var(--text-muted); margin-top: 5px;">Used to automatically bypass hCaptcha, reCAPTCHA, and Arkose limits via LLaMA 3.2 Vision.</div>
                         </div>
                         <div class="input-group mt-16">
+                            <label class="input-label">SMS-Activate API Key (Real Phone Numbers)</label>
+                            <input class="input-field" id="cfg-sms-key" type="password" value="${config.smsApiKey || config.envSmsApiKey || ''}" placeholder="Enter SMS-Activate / 5sim API key..." autocomplete="off">
+                            <div style="font-size: 12px; color: var(--text-muted); margin-top: 5px;">Required for Telegram, TikTok, and YouTube. Replaces fake numbers with real ones.</div>
+                        </div>
+                        <div class="input-group mt-16">
                             <label class="input-label">Backend Platform Server (optional)</label>
                             <input class="input-field" id="cfg-api-endpoint" value="${config.apiEndpoint || ''}" placeholder="https://your-server.onrender.com">
                         </div>
@@ -218,6 +223,8 @@ class SettingsPage {
                 apiEndpoint: document.getElementById('cfg-api-endpoint').value,
                 groqApiKey: groqKeyInput || config.groqApiKey,
                 envGroqApiKey: config.envGroqApiKey,
+                smsApiKey: document.getElementById('cfg-sms-key').value.trim() || config.smsApiKey,
+                envSmsApiKey: config.envSmsApiKey,
                 theme: config.theme || 'dark',
                 language: config.language || 'en',
                 logLevel: config.logLevel || 'info'

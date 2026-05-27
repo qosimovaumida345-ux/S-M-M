@@ -213,33 +213,71 @@ async function handleCreateAccount(page, task, paths, proxy) {
                 await page.goto('https://m.instagram.com/accounts/emailsignup/', { waitUntil: 'load' });
                 await page.waitForTimeout(3000 + Math.random() * 2000);
                 
-                // Using less restrictive selectors (works for both m.instagram and www.instagram)
+                let cursor;
+                try {
+                    const { createCursor } = require('ghost-cursor');
+                    cursor = createCursor(page);
+                } catch(e) {}
+                
+                async function smartClick(selector) {
+                    if (cursor) {
+                        try { await cursor.click(selector); return; } catch(e) {}
+                    }
+                    const el = await page.locator(selector);
+                    if (await el.count() > 0) await el.first().click();
+                }
+                
+                if (cursor) await cursor.move({ x: 150 + Math.random() * 200, y: 150 + Math.random() * 200 });
+                
                 const emailInput = await page.locator('input[name="emailOrPhone"], input[type="email"], input[type="tel"]');
                 if (await emailInput.count() > 0) {
-                    const tempEmail = `ig_${Math.random().toString(36).substring(7)}@example.com`;
-                    await emailInput.first().fill(tempEmail);
-                    await page.waitForTimeout(1000);
+                    const smsService = require('../core/sms-service');
+                    const rentResp = await smsService.getNumber('ig', '0'); // ig = Instagram
+                    
+                    if (!rentResp.success) {
+                        return { error: 'SMS API Failed to rent number: ' + rentResp.error };
+                    }
+                    
+                    let phoneNumber = rentResp.number;
+                    if (phoneNumber.startsWith('+')) phoneNumber = phoneNumber.substring(1);
+                    
+                    const { generateIdentity } = require('../core/identity');
+                    const identity = generateIdentity();
+                    
+                    await emailInput.first().focus();
+                    await page.keyboard.type('+' + phoneNumber, { delay: 60 + Math.random() * 50 });
+                    await page.waitForTimeout(1000 + Math.random() * 500);
                     
                     const nameInput = await page.locator('input[name="fullName"], input[aria-label="Full Name"]');
-                    if (await nameInput.count() > 0) await nameInput.first().fill('Alex Smith');
+                    if (await nameInput.count() > 0) {
+                        await nameInput.first().focus();
+                        await page.keyboard.type(identity.displayName, { delay: 60 + Math.random() * 50 });
+                        await page.waitForTimeout(800 + Math.random() * 500);
+                    }
                     
                     const userInput = await page.locator('input[name="username"]');
-                    const username = `alexsmith_${Math.random().toString(36).substring(7)}`;
-                    if (await userInput.count() > 0) await userInput.first().fill(username);
+                    if (await userInput.count() > 0) {
+                        await userInput.first().focus();
+                        await page.keyboard.press('Control+A'); // clear if suggested
+                        await page.keyboard.type(identity.username, { delay: 60 + Math.random() * 50 });
+                        await page.waitForTimeout(800 + Math.random() * 500);
+                    }
                     
                     const passInput = await page.locator('input[name="password"]');
-                    const password = `IgPass!${Math.random().toString(36).substring(7)}`;
-                    if (await passInput.count() > 0) await passInput.first().fill(password);
+                    if (await passInput.count() > 0) {
+                        await passInput.first().focus();
+                        await page.keyboard.type(identity.password, { delay: 50 + Math.random() * 30 });
+                    }
                     
-                    await page.waitForTimeout(1500);
+                    await page.waitForTimeout(1500 + Math.random() * 1000);
                     
                     // Click SignUp / Next button
                     const submitBtn = await page.locator('button[type="submit"], div[role="button"]:has-text("Sign up"), div[role="button"]:has-text("Next")');
                     if (await submitBtn.count() > 0) {
-                        await submitBtn.first().click();
-                        await page.waitForTimeout(5000);
+                        await smartClick('button[type="submit"], div[role="button"]:has-text("Sign up"), div[role="button"]:has-text("Next")');
+                        await page.waitForTimeout(6000);
                         
-                        // Check for any Recaptcha / hCaptcha overlapping forms
+                        // Check for Captcha BEFORE SMS verify
                         let isCaptchaTriggered = await page.locator('iframe[src*="recaptcha"], iframe[src*="hcaptcha"], iframe[title*="recaptcha"]').count() > 0;
                         if (isCaptchaTriggered) {
                             const captchaSolver = require('../core/captcha-solver');
@@ -247,7 +285,32 @@ async function handleCreateAccount(page, task, paths, proxy) {
                             if (solveRes.success) isCaptchaTriggered = false;
                         }
 
-                        return { user: username, pass: password, email: tempEmail, captchaTriggered: isCaptchaTriggered };
+                        // Wait for SMS code
+                        let code = null;
+                        for (let i = 0; i < 20; i++) {
+                            await page.waitForTimeout(4000);
+                            const chk = await smsService.checkSms(rentResp.id);
+                            if (chk.status === 'RECEIVED' && chk.code) {
+                                code = chk.code;
+                                break;
+                            }
+                        }
+                        
+                        if (!code) {
+                            await smsService.cancelNumber(rentResp.id);
+                            return { error: 'SMS check timeout on Instagram' };
+                        }
+                        
+                        const verifyInput = await page.locator('input[name="confirmationCode"], input[aria-label*="code" i]');
+                        if (await verifyInput.count() > 0) {
+                            await verifyInput.first().focus();
+                            await page.keyboard.type(code, { delay: 80 + Math.random() * 50 });
+                            await page.waitForTimeout(1500);
+                            await smartClick('button[type="button"]:has-text("Next"), button[type="button"]:has-text("Confirm")');
+                            await page.waitForTimeout(5000);
+                        }
+
+                        return { user: identity.username, pass: identity.password, phone: phoneNumber, captchaTriggered: isCaptchaTriggered };
                     }
                 }
                 return null;

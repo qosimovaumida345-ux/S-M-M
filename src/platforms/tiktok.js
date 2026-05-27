@@ -283,67 +283,81 @@ async function handleCreateAccount(page, task, paths, accountTemplate, proxy) {
         const methods = [
             // METHOD 1: Email signup
             async () => {
+                let cursor;
+                try {
+                    const { createCursor } = require('ghost-cursor');
+                    cursor = createCursor(page);
+                } catch(e) {}
+                
+                async function smartClick(selector) {
+                    if (cursor) {
+                        try { await cursor.click(selector); return; } catch(e) {}
+                    }
+                    const el = await page.locator(selector);
+                    if (await el.count() > 0) await el.first().click();
+                }
+
                 await page.goto('https://www.tiktok.com/signup', { waitUntil: 'load' });
-                await page.waitForTimeout(3000 + Math.random() * 2000);
+                if (cursor) await cursor.move({ x: 100 + Math.random() * 200, y: 100 + Math.random() * 200 });
+                await page.waitForTimeout(3000 + Math.random() * 3000);
                 
                 // Click "Use phone or email"
                 const emailSignup = await page.locator('[data-e2e="channel-item"], div[class*="channel-item"]');
-                
-                // Find the one with email/phone
                 const count = await emailSignup.count();
                 for (let i = 0; i < count; i++) {
                     const text = await emailSignup.nth(i).innerText();
                     if (text.toLowerCase().includes('email') || text.toLowerCase().includes('phone') || text.toLowerCase().includes('telefon')) {
-                        await emailSignup.nth(i).click();
+                        await smartClick('[data-e2e="channel-item"], div[class*="channel-item"] >> nth=' + i);
                         await page.waitForTimeout(2000);
                         break;
                     }
                 }
                 
+                const { generateIdentity } = require('../core/identity');
+                const identity = generateIdentity();
+                const password = identity.password;
+                
                 // Fill in birthday
                 const monthSelect = await page.locator('select[data-e2e="month-select"], select:nth-of-type(1)');
                 if (await monthSelect.count() > 0) {
-                    await monthSelect.first().selectOption('January');
+                    await monthSelect.first().selectOption({ index: identity.dob.month });
                     const daySelect = await page.locator('select[data-e2e="day-select"], select:nth-of-type(2)');
-                    if (await daySelect.count() > 0) await daySelect.first().selectOption('15');
+                    if (await daySelect.count() > 0) await daySelect.first().selectOption({ index: Math.min(identity.dob.day, 28) });
                     const yearSelect = await page.locator('select[data-e2e="year-select"], select:nth-of-type(3)');
-                    if (await yearSelect.count() > 0) await yearSelect.first().selectOption('2000');
+                    if (await yearSelect.count() > 0) await yearSelect.first().selectOption(identity.dob.year.toString());
                     
                     await page.waitForTimeout(1000);
                 }
                 
-                // Switch to email tab if phone is default
-                const emailTab = await page.locator('a:has-text("Email"), a[data-e2e="email-tab"]');
-                if (await emailTab.count() > 0) {
-                    await emailTab.first().click();
-                    await page.waitForTimeout(500);
+                // Ensure Phone tab is active (TikTok defaults to it usually)
+                const phoneTab = await page.locator('a[data-e2e="phone-tab"]');
+                if (await phoneTab.count() > 0) await smartClick('a[data-e2e="phone-tab"]');
+                
+                const smsService = require('../core/sms-service');
+                const rentResp = await smsService.getNumber('lf', '0'); // 'lf' is TikTok
+                
+                if (!rentResp.success) {
+                    return { error: 'Failed to rent phone number from SMS-Activate: ' + rentResp.error };
                 }
                 
-                const email = `tk_${Math.random().toString(36).substring(2, 10)}@example.com`;
-                const password = `TkPass!${Math.random().toString(36).substring(2, 10)}`;
+                let phoneNumber = rentResp.number;
+                if (phoneNumber.startsWith('+998')) phoneNumber = phoneNumber.replace('+998', ''); // Example local formatting if needed, but best to keep full if possible
+                if (phoneNumber.startsWith('+')) phoneNumber = phoneNumber.substring(1); // remove + 
+                // Many times you have to select country code manually, but pasting full number often works or just relying on country '0' (Russia = +7)
+                if (phoneNumber.startsWith('7')) phoneNumber = phoneNumber.substring(1); 
                 
-                // Fill email
-                const emailInput = await page.locator('input[name="email"], input[type="text"][placeholder*="email" i]');
-                if (await emailInput.count() > 0) {
-                    await emailInput.first().fill(email);
-                    await page.waitForTimeout(500 + Math.random() * 500);
-                }
-
-                // Fill password
-                const passInput = await page.locator('input[type="password"]');
-                if (await passInput.count() > 0) {
-                    await passInput.first().fill(password);
-                    await page.waitForTimeout(500 + Math.random() * 500);
+                const phoneInput = await page.locator('input[name="mobile"], input[type="text"][placeholder*="phone" i], input[type="tel"]');
+                if (await phoneInput.count() > 0) {
+                    await phoneInput.first().focus();
+                    await page.keyboard.type(phoneNumber, { delay: 60 + Math.random() * 50 });
+                    await page.waitForTimeout(1000);
                 }
                 
-                // Submit
-                const submitBtn = await page.locator('button[data-e2e="sign-up-button"], button[type="submit"]');
-                if (await submitBtn.count() > 0) {
-                    await submitBtn.first().click();
-                    await page.waitForTimeout(5000);
-                }
+                // Click Send Code
+                await smartClick('button[data-e2e="send-code-button"]');
+                await page.waitForTimeout(4000);
                 
-                // Check for captcha
+                // Check for captcha BEFORE SMS waiting
                 let isCaptchaTriggered = await page.locator('div[id*="captcha"], iframe[src*="captcha"]').count() > 0;
                 if (isCaptchaTriggered) {
                     const captchaSolver = require('../core/captcha-solver');
@@ -351,10 +365,49 @@ async function handleCreateAccount(page, task, paths, accountTemplate, proxy) {
                     if (solveRes.success) isCaptchaTriggered = false;
                 }
                 
+                // Wait for SMS
+                let code = null;
+                for (let i = 0; i < 20; i++) {
+                    await page.waitForTimeout(4000);
+                    const chk = await smsService.checkSms(rentResp.id);
+                    if (chk.status === 'RECEIVED' && chk.code) {
+                        code = chk.code;
+                        break;
+                    }
+                }
+                
+                if (!code) {
+                    await smsService.cancelNumber(rentResp.id);
+                    return { error: 'SMS check timeout on TikTok' };
+                }
+                
+                // Enter code
+                const codeInput = await page.locator('input[placeholder*="code" i], input[data-e2e="code-input"]');
+                if (await codeInput.count() > 0) {
+                    await codeInput.first().focus();
+                    await page.keyboard.type(code, { delay: 80 + Math.random() * 50 });
+                }
+                
+                await page.waitForTimeout(2000);
+                
+                // Password
+                const passInput = await page.locator('input[type="password"]');
+                if (await passInput.count() > 0) {
+                    await passInput.first().focus();
+                    await page.keyboard.type(password, { delay: 60 + Math.random() * 50 });
+                }
+                
+                // Submit
+                const submitBtn = await page.locator('button[data-e2e="next-button"], button[type="submit"]');
+                if (await submitBtn.count() > 0) {
+                    await smartClick('button[data-e2e="next-button"], button[type="submit"]');
+                    await page.waitForTimeout(5000);
+                }
+                
                 return {
-                    email,
+                    username: rentResp.number,
                     password,
-                    username: email.split('@')[0],
+                    displayName: identity.displayName,
                     captchaTriggered: isCaptchaTriggered
                 };
             }

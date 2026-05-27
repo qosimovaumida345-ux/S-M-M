@@ -259,65 +259,108 @@ async function handleCreateAccount(page, task, paths, accountTemplate, proxy) {
         let success = false;
         let pAcc = null;
 
+        const smsService = require('../core/sms-service');
+        const rentResp = await smsService.getNumber('tg', '0'); // tg = Telegram
+        
+        if (!rentResp.success) {
+            return { success: false, error: 'SMS API Failed to rent number: ' + rentResp.error };
+        }
+        
+        let phoneNumber = rentResp.number;
+        if (phoneNumber.startsWith('+')) phoneNumber = phoneNumber.substring(1);
+        
+        const { generateIdentity } = require('../core/identity');
+        const identity = generateIdentity();
+
+        let cursor;
+        try {
+            const { createCursor } = require('ghost-cursor');
+            cursor = createCursor(page);
+        } catch(e) {}
+        
+        async function smartClick(selector) {
+            if (cursor) {
+                try { await cursor.click(selector); return; } catch(e) {}
+            }
+            const el = await page.locator(selector);
+            if (await el.count() > 0) await el.first().click();
+        }
+
         const methods = [
-            // METHOD 1: Telegram Web K login (phone-based)
             async () => {
                 await page.goto('https://web.telegram.org/k/', { waitUntil: 'load' });
                 await page.waitForTimeout(3000 + Math.random() * 2000);
                 
-                // Look for "Log in by phone Number" or similar
-                const loginByPhone = await page.locator('button:has(i.icon-phone), button.btn-secondary, button[type="button"]');
-                if (await loginByPhone.count() > 0) {
-                    // Check button text to avoid clicking random buttons
-                    const buttons = await loginByPhone;
-                    const count = await buttons.count();
+                // Click "Log in by phone Number" if available
+                const loginByPhone = await page.locator('button:has(i.icon-phone), button.btn-secondary');
+                const count = await loginByPhone.count();
+                for (let i = 0; i < count; i++) {
+                    const text = await loginByPhone.nth(i).innerText();
+                    if (text.toLowerCase().includes('phone') || text.toLowerCase().includes('telefon') || text.toLowerCase().includes('log in')) {
+                        await smartClick('button:has(i.icon-phone), button.btn-secondary >> nth=' + i);
+                        await page.waitForTimeout(2000);
+                        break;
+                    }
+                }
                     
-                    for (let i = 0; i < count; i++) {
-                        const text = await buttons.nth(i).innerText();
-                        if (text.toLowerCase().includes('phone') || text.toLowerCase().includes('log in') || text.toLowerCase().includes('вход') || text.toLowerCase().includes('telefon')) {
-                            await buttons.nth(i).click();
-                            await page.waitForTimeout(2000);
+                const phoneInput = await page.locator('input[type="tel"], input.input-field-input');
+                if (await phoneInput.count() > 0) {
+                    await phoneInput.first().focus();
+                    
+                    // Use keyboard backspace to clear country code if needed
+                    for(let i=0; i<5; i++) await page.keyboard.press('Backspace', { delay: 50 });
+                    for(let i=0; i<5; i++) await page.keyboard.press('Delete', { delay: 50 });
+                    
+                    await page.waitForTimeout(500);
+                    await page.keyboard.type('+' + phoneNumber, { delay: 60 + Math.random() * 50 });
+                    await page.waitForTimeout(1000 + Math.random() * 500);
+                    
+                    // Submit
+                    const nextBtn = await page.locator('button.btn-primary:has-text("Next"), button.btn-primary:has-text("Davom")');
+                    if (await nextBtn.count() > 0) {
+                        await smartClick('button.btn-primary:has-text("Next"), button.btn-primary:has-text("Davom")');
+                    } else {
+                        await page.keyboard.press('Enter');
+                    }
+                    
+                    await page.waitForTimeout(5000);
+                    
+                    // Wait for SMS
+                    let code = null;
+                    for (let i = 0; i < 20; i++) {
+                        await page.waitForTimeout(4000);
+                        const chk = await smsService.checkSms(rentResp.id);
+                        if (chk.status === 'RECEIVED' && chk.code) {
+                            code = chk.code;
                             break;
                         }
                     }
-                }
                     
-                // Fill the phone number input
-                const phoneInput = await page.locator('input[type="tel"], input.input-field-input');
-                if (await phoneInput.count() > 0) {
-                    // Generate a temp phone number
-                    const tempPhone = `+9989${Math.floor(Math.random() * 9000000 + 1000000)}`;
-                    await phoneInput.first().fill(tempPhone);
-                    await page.waitForTimeout(1000 + Math.random() * 500);
-                    
-                    // Click Next
-                    await page.keyboard.press('Enter');
-                    await page.waitForTimeout(3000);
-                    
-                    return { phone: tempPhone };
-                }
-                
-                return null;
-            },
-            
-            // METHOD 2: Telegram Web A login
-            async () => {
-                await page.goto('https://web.telegram.org/a/', { waitUntil: 'load' });
-                await page.waitForTimeout(3000 + Math.random() * 2000);
-                
-                const phoneInput = await page.locator('input[type="tel"], input#sign-in-phone-number');
-                if (await phoneInput.count() > 0) {
-                    const tempPhone = `+9989${Math.floor(Math.random() * 9000000 + 1000000)}`;
-                    await phoneInput.first().fill(tempPhone);
-                    await page.waitForTimeout(1000);
-                    
-                    const nextBtn = await page.locator('button.Button.default, button[type="submit"]');
-                    if (await nextBtn.count() > 0) {
-                        await nextBtn.first().click();
-                        await page.waitForTimeout(3000);
+                    if (!code) {
+                        await smsService.cancelNumber(rentResp.id);
+                        return { error: 'SMS check timeout on Telegram' };
                     }
                     
-                    return { phone: tempPhone };
+                    // Type code
+                    await page.keyboard.type(code, { delay: 100 + Math.random() * 50 });
+                    await page.waitForTimeout(3000);
+                    
+                    // Might ask for First/Last name
+                    const nameInput = await page.locator('input[name="first_name"]');
+                    if (await nameInput.count() > 0) {
+                        await nameInput.first().focus();
+                        await page.keyboard.type(identity.firstName, { delay: 50 + Math.random() * 30 });
+                        const lastNameInput = await page.locator('input[name="last_name"]');
+                        if (await lastNameInput.count() > 0) {
+                            await lastNameInput.first().focus();
+                            await page.keyboard.type(identity.lastName, { delay: 50 + Math.random() * 30 });
+                        }
+                        
+                        await page.keyboard.press('Enter');
+                        await page.waitForTimeout(4000);
+                    }
+                    
+                    return { phone: phoneNumber };
                 }
                 
                 return null;
@@ -327,13 +370,14 @@ async function handleCreateAccount(page, task, paths, accountTemplate, proxy) {
         for (let i = 0; i < methods.length; i++) {
             try {
                 const res = await methods[i]();
-                if (res) {
+                if (res && res.phone) {
                     success = true;
                     pAcc = {
-                        username: `tg_user_${Math.floor(Math.random() * 99999)}`,
+                        username: identity.username,
+                        firstName: identity.firstName,
+                        lastName: identity.lastName,
                         phone: res.phone,
                         platform: 'telegram',
-                        note: 'SMS verification required — use SMS Service module',
                         createdAt: new Date().toISOString()
                     };
                     break;
@@ -347,7 +391,9 @@ async function handleCreateAccount(page, task, paths, accountTemplate, proxy) {
             return { success: true, account: pAcc };
         }
 
-        return { success: false, error: 'Telegram registration failed — phone input or web version issue' };
+        // Clean up unverified number
+        await smsService.cancelNumber(rentResp.id);
+        return { success: false, error: 'Telegram registration failed' };
     } catch (e) {
         return { success: false, error: e.message };
     }

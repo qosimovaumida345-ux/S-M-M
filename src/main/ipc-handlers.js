@@ -62,6 +62,9 @@ function register(ipcMain, mainWindow, paths) {
         if (process.env.GROQ_API_KEY) {
             config.envGroqApiKey = process.env.GROQ_API_KEY;
         }
+        if (process.env.SMS_API_KEY) {
+            config.envSmsApiKey = process.env.SMS_API_KEY;
+        }
         return config;
     });
 
