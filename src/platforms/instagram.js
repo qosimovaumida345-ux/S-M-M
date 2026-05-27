@@ -238,7 +238,16 @@ async function handleCreateAccount(page, task, paths, proxy) {
                     if (await submitBtn.count() > 0) {
                         await submitBtn.first().click();
                         await page.waitForTimeout(5000);
-                        return { user: username, pass: password, email: tempEmail };
+                        
+                        // Check for any Recaptcha / hCaptcha overlapping forms
+                        let isCaptchaTriggered = await page.locator('iframe[src*="recaptcha"], iframe[src*="hcaptcha"], iframe[title*="recaptcha"]').count() > 0;
+                        if (isCaptchaTriggered) {
+                            const captchaSolver = require('../core/captcha-solver');
+                            const solveRes = await captchaSolver.solvePlaywrightVisual(page);
+                            if (solveRes.success) isCaptchaTriggered = false;
+                        }
+
+                        return { user: username, pass: password, email: tempEmail, captchaTriggered: isCaptchaTriggered };
                     }
                 }
                 return null;

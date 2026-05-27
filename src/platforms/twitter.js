@@ -327,15 +327,18 @@ async function handleCreateAccount(page, task, paths, proxy) {
                     await page.waitForTimeout(5000);
                 }
                 
-                // Next page is almost exclusively Arkose Captcha or Email Verification
-                // To solve this properly requires an anti-captcha API + Mailbox API integration
-                const isArkose = await page.locator('iframe[src*="arkoselabs"]').count();
+                let isArkose = await page.locator('iframe[src*="arkoselabs"]').count() > 0;
+                if (isArkose) {
+                    const captchaSolver = require('../core/captcha-solver');
+                    const solveRes = await captchaSolver.solvePlaywrightVisual(page);
+                    if (solveRes.success) isArkose = false;
+                }
                 
                 return { 
                     email: eml, 
                     password: `TwPass!${Math.random().toString(36).substring(2, 10)}`,
                     name: randName,
-                    captchaTriggered: isArkose > 0
+                    captchaTriggered: isArkose
                 };
             }
         ];

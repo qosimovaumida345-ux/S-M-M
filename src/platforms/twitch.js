@@ -289,13 +289,18 @@ async function handleCreateAccount(page, task, paths, proxy) {
                 }
                 
                 // Check for captcha
-                const captcha = await page.locator('iframe[src*="arkose"], iframe[title*="Verification"]').count();
+                let isCaptchaTriggered = await page.locator('iframe[src*="arkose"], iframe[title*="Verification"]').count() > 0;
+                if (isCaptchaTriggered) {
+                    const captchaSolver = require('../core/captcha-solver');
+                    const solveRes = await captchaSolver.solvePlaywrightVisual(page);
+                    if (solveRes.success) isCaptchaTriggered = false;
+                }
                 
                 return {
                     username,
                     email,
                     password,
-                    captchaTriggered: captcha > 0
+                    captchaTriggered: isCaptchaTriggered
                 };
             }
         ];

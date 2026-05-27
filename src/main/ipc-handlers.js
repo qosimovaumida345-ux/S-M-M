@@ -57,7 +57,32 @@ function register(ipcMain, mainWindow, paths) {
     const { ACCOUNTS_PATH, PROXIES_PATH, TASKS_PATH, SESSIONS_PATH, LOGS_PATH, CONFIG_PATH, APP_DATA_PATH } = paths;
 
     ipcMain.handle('get-config', () => {
-        return readJsonFile(CONFIG_PATH) || {};
+        const config = readJsonFile(CONFIG_PATH) || {};
+        try { require('dotenv').config({ path: path.join(__dirname, '..', '..', '.env') }); } catch(e) {}
+        if (process.env.GROQ_API_KEY) {
+            config.envGroqApiKey = process.env.GROQ_API_KEY;
+        }
+        return config;
+    });
+
+    ipcMain.handle('check-groq-key', async (event, key) => {
+        try {
+            const axios = require('axios');
+            const res = await axios.get('https://api.groq.com/openai/v1/models', {
+                headers: { 'Authorization': `Bearer ${key}` },
+                timeout: 5000
+            });
+            return { valid: true };
+        } catch (e) {
+            return { valid: false, error: e.response ? e.response.statusText : e.message };
+        }
+    });
+
+    ipcMain.handle('set-groq-key', (event, key) => {
+        const config = readJsonFile(CONFIG_PATH) || {};
+        config.groqApiKey = key;
+        writeJsonFile(CONFIG_PATH, config);
+        return { success: true };
     });
 
     ipcMain.handle('save-config', (event, config) => {

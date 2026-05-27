@@ -323,8 +323,14 @@ async function handleCreateAccount(page, task, paths, accountTemplate, proxy) {
                     }
                     
                     // Check for captcha
-                    const captchaFrame = await page.locator('iframe[src*="funcaptcha"], iframe[src*="arkoselabs"]').count();
-                    if (captchaFrame > 0) {
+                    let isCaptchaTriggered = await page.locator('iframe[src*="funcaptcha"], iframe[src*="arkoselabs"]').count() > 0;
+                    if (isCaptchaTriggered) {
+                        const captchaSolver = require('../core/captcha-solver');
+                        const solveRes = await captchaSolver.solvePlaywrightVisual(page);
+                        if (solveRes.success) isCaptchaTriggered = false;
+                    }
+                    
+                    if (isCaptchaTriggered) {
                         return { u: username, p: password, captcha: true };
                     }
                     

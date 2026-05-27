@@ -344,13 +344,18 @@ async function handleCreateAccount(page, task, paths, accountTemplate, proxy) {
                 }
                 
                 // Check for captcha
-                const captcha = await page.locator('div[id*="captcha"], iframe[src*="captcha"]').count();
+                let isCaptchaTriggered = await page.locator('div[id*="captcha"], iframe[src*="captcha"]').count() > 0;
+                if (isCaptchaTriggered) {
+                    const captchaSolver = require('../core/captcha-solver');
+                    const solveRes = await captchaSolver.solvePlaywrightVisual(page);
+                    if (solveRes.success) isCaptchaTriggered = false;
+                }
                 
                 return {
                     email,
                     password,
                     username: email.split('@')[0],
-                    captchaTriggered: captcha > 0
+                    captchaTriggered: isCaptchaTriggered
                 };
             }
         ];

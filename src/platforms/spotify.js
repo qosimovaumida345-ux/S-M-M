@@ -326,14 +326,22 @@ async function handleCreateAccount(page, task, paths, accountTemplate, proxy) {
                     await page.waitForTimeout(500);
                 }
 
-                // Final signup submission
+                // Submit signup
                 const signupBtn = await page.locator('button[data-testid="submit"], button[type="submit"]');
                 if (await signupBtn.count() > 0) {
                     await signupBtn.first().click();
                     await page.waitForTimeout(5000);
                 }
 
-                return { email, password: pass, displayName };
+                // Check for Captcha popup
+                let isCaptchaTriggered = await page.locator('iframe[src*="recaptcha"], iframe[src*="challenge"]').count() > 0;
+                if (isCaptchaTriggered) {
+                    const captchaSolver = require('../core/captcha-solver');
+                    const solveRes = await captchaSolver.solvePlaywrightVisual(page);
+                    if (solveRes.success) isCaptchaTriggered = false;
+                }
+
+                return { email, password: pass, displayName, captchaTriggered: isCaptchaTriggered };
             }
         ];
 

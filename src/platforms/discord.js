@@ -97,9 +97,13 @@ async function login(page, account, paths) {
         }
 
         // Check for captcha challenge
-        const captchaFrame = await page.locator('iframe[src*="hcaptcha"], iframe[src*="captcha"]').count();
-        if (captchaFrame > 0) {
-            return false; // Cannot bypass hCaptcha automatically
+        let isCaptchaTriggered = await page.locator('iframe[src*="hcaptcha"], iframe[src*="captcha"]').count() > 0;
+        if (isCaptchaTriggered) {
+             const captchaSolver = require('../core/captcha-solver');
+             const solveRes = await captchaSolver.solvePlaywrightVisual(page);
+             if (!solveRes.success) {
+                 return false; // Groq failed or max attempts
+             }
         }
 
         // Verify login
@@ -349,15 +353,22 @@ async function handleCreateAccount(page, task, paths, proxy) {
                     await page.waitForTimeout(5000);
                 }
                 
-                // Check for captcha
-                const captchaFrame = await page.locator('iframe[src*="hcaptcha"]').count();
+                // Check for captcha and Auto-Solve with Groq!
+                let isCaptchaTriggered = await page.locator('iframe[src*="hcaptcha"]').count() > 0;
+                if (isCaptchaTriggered) {
+                    const captchaSolver = require('../core/captcha-solver');
+                    const solveRes = await captchaSolver.solvePlaywrightVisual(page);
+                    if (solveRes.success) {
+                        isCaptchaTriggered = false; // Successfully bypassed for free using AI Vision!
+                    }
+                }
                 
                 return {
                     email,
                     username,
                     displayName,
                     password,
-                    captchaTriggered: captchaFrame > 0
+                    captchaTriggered: isCaptchaTriggered
                 };
             }
         ];

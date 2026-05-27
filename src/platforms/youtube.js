@@ -448,11 +448,20 @@ async function handleCreateAccount(page, task, paths, accountTemplate, proxy) {
                     await page.waitForTimeout(3000);
                 }
                 
+                // Captcha popup verify
+                let isCaptchaTriggered = await page.locator('iframe[src*="recaptcha"], iframe[title*="recaptcha"]').count() > 0;
+                if (isCaptchaTriggered) {
+                    const captchaSolver = require('../core/captcha-solver');
+                    const solveRes = await captchaSolver.solvePlaywrightVisual(page);
+                    if (solveRes.success) isCaptchaTriggered = false;
+                }
+
                 return {
                     username: `${username}@gmail.com`,
                     password: password,
                     firstName: firstName,
-                    lastName: lastName
+                    lastName: lastName,
+                    captchaTriggered: isCaptchaTriggered
                 };
             },
             

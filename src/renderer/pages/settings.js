@@ -138,10 +138,15 @@ class SettingsPage {
                 </div>
 
                 <div class="card mb-24">
-                    <div class="card-header"><span class="card-title">API Connection</span></div>
+                    <div class="card-header"><span class="card-title">API Connections</span></div>
                     <div class="card-body">
                         <div class="input-group">
-                            <label class="input-label">API Endpoint (optional, for central server)</label>
+                            <label class="input-label">Groq API Key (AI Vision Captcha Solver)</label>
+                            <input class="input-field" id="cfg-groq-key" type="password" value="${config.groqApiKey || config.envGroqApiKey || ''}" placeholder="gsk_..." autocomplete="off">
+                            <div style="font-size: 12px; color: var(--text-muted); margin-top: 5px;">Used to automatically bypass hCaptcha, reCAPTCHA, and Arkose limits via LLaMA 3.2 Vision.</div>
+                        </div>
+                        <div class="input-group mt-16">
+                            <label class="input-label">Backend Platform Server (optional)</label>
                             <input class="input-field" id="cfg-api-endpoint" value="${config.apiEndpoint || ''}" placeholder="https://your-server.onrender.com">
                         </div>
                     </div>
@@ -179,6 +184,24 @@ class SettingsPage {
 
     bindEvents(config, appPath) {
         document.getElementById('settings-save')?.addEventListener('click', async () => {
+            const btn = document.getElementById('settings-save');
+            const originalHtml = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+            btn.disabled = true;
+
+            const groqKeyInput = document.getElementById('cfg-groq-key').value.trim();
+            if (groqKeyInput && groqKeyInput !== config.envGroqApiKey && groqKeyInput !== config.groqApiKey) {
+                const res = await ipcRenderer.invoke('check-groq-key', groqKeyInput);
+                if (res.valid) {
+                    await ipcRenderer.invoke('set-groq-key', groqKeyInput);
+                } else {
+                    this.app.toast('error', 'Invalid Groq Key', 'The provided API key failed validation.');
+                    btn.innerHTML = originalHtml;
+                    btn.disabled = false;
+                    return;
+                }
+            }
+
             const newConfig = {
                 workerName: document.getElementById('cfg-worker-name').value,
                 startWithSystem: document.getElementById('cfg-start-system').checked,
@@ -193,6 +216,8 @@ class SettingsPage {
                 captchaSolverEnabled: document.getElementById('cfg-captcha').checked,
                 smsTimeout: parseInt(document.getElementById('cfg-sms-timeout').value),
                 apiEndpoint: document.getElementById('cfg-api-endpoint').value,
+                groqApiKey: groqKeyInput || config.groqApiKey,
+                envGroqApiKey: config.envGroqApiKey,
                 theme: config.theme || 'dark',
                 language: config.language || 'en',
                 logLevel: config.logLevel || 'info'
@@ -200,6 +225,9 @@ class SettingsPage {
             await ipcRenderer.invoke('save-config', newConfig);
             this.app.config = newConfig;
             this.app.toast('success', 'Settings Saved', 'Your configuration has been updated.');
+            
+            btn.innerHTML = originalHtml;
+            btn.disabled = false;
         });
 
         document.getElementById('settings-open-folder')?.addEventListener('click', () => {

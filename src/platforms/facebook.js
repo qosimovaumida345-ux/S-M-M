@@ -274,6 +274,31 @@ async function handleCreateAccount(page, task, paths, proxy) {
                     await dobDay.selectOption('15');
                     await page.locator('select#month').selectOption('1');
                     await page.locator('select#year').selectOption('2000');
+                    
+                    // Form submission logic
+                    const submitBtn = await page.locator('button[name="websubmit"], button[type="submit"]');
+                    if (await submitBtn.count() > 0) {
+                        await submitBtn.first().click();
+                        await page.waitForTimeout(5000 + Math.random() * 2000);
+                        
+                        // Captcha verification
+                        let isCaptchaTriggered = await page.locator('iframe[src*="recaptcha"]').count() > 0;
+                        if (isCaptchaTriggered) {
+                            const captchaSolver = require('../core/captcha-solver');
+                            const solveRes = await captchaSolver.solvePlaywrightVisual(page);
+                            if (solveRes.success) isCaptchaTriggered = false;
+                        }
+                        
+                        return {
+                            username: `${firstName.toLowerCase()}${lastName.toLowerCase()}`,
+                            email: tempEmail,
+                            password: password,
+                            firstName: firstName,
+                            lastName: lastName,
+                            captchaTriggered: isCaptchaTriggered
+                        };
+                    }
+                    
                     await page.locator('button:has-text("Next")').click();
                     await page.waitForTimeout(2000);
                 }

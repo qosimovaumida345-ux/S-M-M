@@ -16,8 +16,60 @@ class App {
         this.setupContextMenu();
         this.setupIpcListeners();
         this.updateWorkerInfo();
+        
+        if (!this.config.groqApiKey && !this.config.envGroqApiKey) {
+            this.showGroqKeyModal();
+        }
+
         this.navigateTo('dashboard');
         this.startAutoRefresh();
+    }
+
+    showGroqKeyModal() {
+        const bodyContent = `
+            <div style="text-align:center; padding: 20px;">
+                <div style="font-size: 48px; color: #8b5cf6; margin-bottom: 20px;"><i class="fas fa-robot"></i></div>
+                <h2 style="margin-bottom: 15px;">Groq API Key Required</h2>
+                <p style="color: var(--text-muted); margin-bottom: 25px;">To run stealth automation and bypass Captchas with AI Vision, you must provide a valid Groq API Key.</p>
+                <div class="input-group">
+                    <input type="password" class="input-field" id="groq-startup-key" placeholder="gsk_...">
+                </div>
+                <div id="groq-test-res" style="color:var(--accent-red); font-size:13px; margin-top:10px;"></div>
+            </div>
+        `;
+        const footerContent = `
+            <button class="btn btn-primary" id="groq-submit" style="width: 100%;">
+                <i class="fas fa-check"></i> Verify & Save
+            </button>
+        `;
+        
+        this.openModal('Setup Required', bodyContent, footerContent);
+        
+        // Prevent closing
+        document.getElementById('modal-close').style.display = 'none';
+        
+        document.getElementById('groq-submit').addEventListener('click', async () => {
+            const btn = document.getElementById('groq-submit');
+            const resDiv = document.getElementById('groq-test-res');
+            const key = document.getElementById('groq-startup-key').value.trim();
+            if(!key) return;
+            
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verifying...';
+            btn.disabled = true;
+            
+            const res = await ipcRenderer.invoke('check-groq-key', key);
+            if (res.valid) {
+                 await ipcRenderer.invoke('set-groq-key', key);
+                 this.config.groqApiKey = key;
+                 document.getElementById('modal-overlay').style.display = 'none'; // force close
+                 document.getElementById('modal-close').style.display = 'block'; // restore for future modals
+                 this.toast('success', 'AI Vision Active', 'Groq API Key successfully linked.');
+            } else {
+                 resDiv.innerText = 'Invalid Key: ' + res.error;
+                 btn.innerHTML = '<i class="fas fa-check"></i> Verify & Save';
+                 btn.disabled = false;
+            }
+        });
     }
 
     setupTitlebar() {
