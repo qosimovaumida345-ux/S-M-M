@@ -328,6 +328,19 @@ function register(ipcMain, mainWindow, paths) {
                 }
             } catch (e) {}
         }
+        const { getPool } = require('../core/account-pool');
+        const pool = getPool();
+        const poolAccounts = [];
+        const platformsList = ['youtube', 'instagram', 'tiktok', 'discord', 'twitter', 'facebook', 'telegram', 'twitch', 'spotify', 'roblox'];
+        
+        for (const p of platformsList) {
+            const accs = pool.listAccounts(p);
+            accs.forEach(a => {
+                a.platform = p;
+                accounts.push(a);
+            });
+        }
+        
         const tasks = getAllJsonFiles(TASKS_PATH);
         const proxyFile = path.join(PROXIES_PATH, 'proxies.json');
         const proxies = readJsonFile(proxyFile) || [];
@@ -336,6 +349,9 @@ function register(ipcMain, mainWindow, paths) {
         const runningTasks = tasks.filter(t => t.status === 'running').length;
         const completedTasks = tasks.filter(t => t.status === 'completed').length;
         const failedTasks = tasks.filter(t => t.status === 'failed').length;
+        
+        // Remove duplicate entries if any before counting
+        const uniqueAccountsCount = new Set(accounts.map(a => a.id)).size;
         const totalAccounts = accounts.length;
         const activeAccounts = accounts.filter(a => a.status === 'active').length;
         const bannedAccounts = accounts.filter(a => a.status === 'banned').length;

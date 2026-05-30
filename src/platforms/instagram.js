@@ -231,21 +231,14 @@ async function handleCreateAccount(page, task, paths, proxy) {
                 
                 const emailInput = await page.locator('input[name="emailOrPhone"], input[type="email"], input[type="tel"]');
                 if (await emailInput.count() > 0) {
-                    const smsService = require('../core/sms-service');
-                    const rentResp = await smsService.getNumber('ig', '0'); // ig = Instagram
-                    
-                    if (!rentResp.success) {
-                        return { error: 'SMS API Failed to rent number: ' + rentResp.error };
-                    }
-                    
-                    let phoneNumber = rentResp.number;
-                    if (phoneNumber.startsWith('+')) phoneNumber = phoneNumber.substring(1);
+                    const tempEmailModule = require('../core/temp-email');
+                    const { email, login, domain } = await tempEmailModule.generateEmail('ig');
                     
                     const { generateIdentity } = require('../core/identity');
                     const identity = generateIdentity();
                     
                     await emailInput.first().focus();
-                    await page.keyboard.type('+' + phoneNumber, { delay: 60 + Math.random() * 50 });
+                    await page.keyboard.type(email, { delay: 60 + Math.random() * 50 });
                     await page.waitForTimeout(1000 + Math.random() * 500);
                     
                     const nameInput = await page.locator('input[name="fullName"], input[aria-label="Full Name"]');
@@ -277,7 +270,7 @@ async function handleCreateAccount(page, task, paths, proxy) {
                         await smartClick('button[type="submit"], div[role="button"]:has-text("Sign up"), div[role="button"]:has-text("Next")');
                         await page.waitForTimeout(6000);
                         
-                        // Check for Captcha BEFORE SMS verify
+                        // Check for Captcha BEFORE email verify
                         let isCaptchaTriggered = await page.locator('iframe[src*="recaptcha"], iframe[src*="hcaptcha"], iframe[title*="recaptcha"]').count() > 0;
                         if (isCaptchaTriggered) {
                             const captchaSolver = require('../core/captcha-solver');
@@ -285,32 +278,16 @@ async function handleCreateAccount(page, task, paths, proxy) {
                             if (solveRes.success) isCaptchaTriggered = false;
                         }
 
-                        // Wait for SMS code
-                        let code = null;
-                        for (let i = 0; i < 20; i++) {
-                            await page.waitForTimeout(4000);
-                            const chk = await smsService.checkSms(rentResp.id);
-                            if (chk.status === 'RECEIVED' && chk.code) {
-                                code = chk.code;
-                                break;
+                        // Auto verify the 1secmail email code
+                        if (!isCaptchaTriggered) {
+                            // Wait for email code for up to 60s
+                            const mailInfo = await tempEmailModule.waitForCode(login, domain, 60000);
+                            if (mailInfo.found && mailInfo.code) {
+                                await tempEmailModule.autoVerifyOnPage(mailInfo.code, null, page);
                             }
                         }
-                        
-                        if (!code) {
-                            await smsService.cancelNumber(rentResp.id);
-                            return { error: 'SMS check timeout on Instagram' };
-                        }
-                        
-                        const verifyInput = await page.locator('input[name="confirmationCode"], input[aria-label*="code" i]');
-                        if (await verifyInput.count() > 0) {
-                            await verifyInput.first().focus();
-                            await page.keyboard.type(code, { delay: 80 + Math.random() * 50 });
-                            await page.waitForTimeout(1500);
-                            await smartClick('button[type="button"]:has-text("Next"), button[type="button"]:has-text("Confirm")');
-                            await page.waitForTimeout(5000);
-                        }
 
-                        return { user: identity.username, pass: identity.password, phone: phoneNumber, captchaTriggered: isCaptchaTriggered };
+                        return { user: identity.username, pass: identity.password, email: email, captchaTriggered: isCaptchaTriggered };
                     }
                 }
                 return null;

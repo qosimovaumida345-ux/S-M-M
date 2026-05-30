@@ -329,35 +329,32 @@ async function handleCreateAccount(page, task, paths, accountTemplate, proxy) {
                     await page.waitForTimeout(1000);
                 }
                 
-                // Ensure Phone tab is active (TikTok defaults to it usually)
-                const phoneTab = await page.locator('a[data-e2e="phone-tab"]');
-                if (await phoneTab.count() > 0) await smartClick('a[data-e2e="phone-tab"]');
+                // Ensure Email tab is active 
+                const emailTab = await page.locator('a[data-e2e="email-tab"], a:has-text("Sign up with email")');
+                if (await emailTab.count() > 0) await smartClick('a[data-e2e="email-tab"], a:has-text("Sign up with email")');
                 
-                const smsService = require('../core/sms-service');
-                const rentResp = await smsService.getNumber('lf', '0'); // 'lf' is TikTok
+                const tempEmailModule = require('../core/temp-email');
+                const { email, login, domain } = await tempEmailModule.generateEmail('tiktok');
                 
-                if (!rentResp.success) {
-                    return { error: 'Failed to rent phone number from SMS-Activate: ' + rentResp.error };
+                const emailInput = await page.locator('input[name="email"], input[type="text"][placeholder*="email" i], input[type="email"]');
+                if (await emailInput.count() > 0) {
+                    await emailInput.first().focus();
+                    await page.keyboard.type(email, { delay: 60 + Math.random() * 50 });
+                    await page.waitForTimeout(1000);
                 }
                 
-                let phoneNumber = rentResp.number;
-                if (phoneNumber.startsWith('+998')) phoneNumber = phoneNumber.replace('+998', ''); // Example local formatting if needed, but best to keep full if possible
-                if (phoneNumber.startsWith('+')) phoneNumber = phoneNumber.substring(1); // remove + 
-                // Many times you have to select country code manually, but pasting full number often works or just relying on country '0' (Russia = +7)
-                if (phoneNumber.startsWith('7')) phoneNumber = phoneNumber.substring(1); 
-                
-                const phoneInput = await page.locator('input[name="mobile"], input[type="text"][placeholder*="phone" i], input[type="tel"]');
-                if (await phoneInput.count() > 0) {
-                    await phoneInput.first().focus();
-                    await page.keyboard.type(phoneNumber, { delay: 60 + Math.random() * 50 });
-                    await page.waitForTimeout(1000);
+                // Password
+                const passInput = await page.locator('input[type="password"]');
+                if (await passInput.count() > 0) {
+                    await passInput.first().focus();
+                    await page.keyboard.type(password, { delay: 60 + Math.random() * 50 });
                 }
                 
                 // Click Send Code
                 await smartClick('button[data-e2e="send-code-button"]');
                 await page.waitForTimeout(4000);
                 
-                // Check for captcha BEFORE SMS waiting
+                // Check for captcha BEFORE email verify
                 let isCaptchaTriggered = await page.locator('div[id*="captcha"], iframe[src*="captcha"]').count() > 0;
                 if (isCaptchaTriggered) {
                     const captchaSolver = require('../core/captcha-solver');
@@ -365,20 +362,15 @@ async function handleCreateAccount(page, task, paths, accountTemplate, proxy) {
                     if (solveRes.success) isCaptchaTriggered = false;
                 }
                 
-                // Wait for SMS
+                // Wait for email code for up to 60s
                 let code = null;
-                for (let i = 0; i < 20; i++) {
-                    await page.waitForTimeout(4000);
-                    const chk = await smsService.checkSms(rentResp.id);
-                    if (chk.status === 'RECEIVED' && chk.code) {
-                        code = chk.code;
-                        break;
-                    }
+                const mailInfo = await tempEmailModule.waitForCode(login, domain, 60000);
+                if (mailInfo.found && mailInfo.code) {
+                    code = mailInfo.code;
                 }
                 
                 if (!code) {
-                    await smsService.cancelNumber(rentResp.id);
-                    return { error: 'SMS check timeout on TikTok' };
+                    return { error: 'Email check timeout on TikTok' };
                 }
                 
                 // Enter code
@@ -390,13 +382,6 @@ async function handleCreateAccount(page, task, paths, accountTemplate, proxy) {
                 
                 await page.waitForTimeout(2000);
                 
-                // Password
-                const passInput = await page.locator('input[type="password"]');
-                if (await passInput.count() > 0) {
-                    await passInput.first().focus();
-                    await page.keyboard.type(password, { delay: 60 + Math.random() * 50 });
-                }
-                
                 // Submit
                 const submitBtn = await page.locator('button[data-e2e="next-button"], button[type="submit"]');
                 if (await submitBtn.count() > 0) {
@@ -405,7 +390,8 @@ async function handleCreateAccount(page, task, paths, accountTemplate, proxy) {
                 }
                 
                 return {
-                    username: rentResp.number,
+                    username: identity.username,
+                    email,
                     password,
                     displayName: identity.displayName,
                     captchaTriggered: isCaptchaTriggered

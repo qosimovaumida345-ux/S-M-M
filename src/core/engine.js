@@ -81,6 +81,13 @@ async function executeTask(task, paths, progressCallback) {
         return;
     }
 
+    // NEW: Check if this is a pool-based action (subscribe, follow, like, join)
+    const poolActions = ['subscribe', 'follow', 'like', 'join'];
+    if (poolActions.includes(task.action)) {
+        await runLoginAndAction(task, paths, progressCallback);
+        return;
+    }
+
     const activeAccs = accounts.filter(a => a.status === 'active');
     task.logs = task.logs || [];
 
@@ -152,6 +159,154 @@ async function executeTask(task, paths, progressCallback) {
     logToFile(paths, `Task ${task.id} completed: ${task.completed} done, ${task.failed} failed`);
 }
 
+// ============================================================
+// NEW: LOGIN + ACTION FLOW
+// Uses Account Pool → Login → Perform Action → Release
+// 100% free, supports cookies and email+password
+// ============================================================
+async function runLoginAndAction(task, paths, progressCallback) {
+    const { getPool } = require('./account-pool');
+    const loginHelper = require('./login-helper');
+    const actionEngine = require('./action-engine');
+
+    task.logs = task.logs || [];
+    const count = task.count || 1;
+    const pool = getPool();
+
+    // Load all accounts for this platform
+    pool.loadAll(task.platform);
+    const stats = pool.getStats(task.platform);
+
+    if (stats.total === 0) {
+        task.status = 'failed';
+        task.logs.push(`❌ Account Pool bo'sh! Quyidagi papkaga accountlarni qo'shing:`);
+        task.logs.push(`📁 ${path.join(pool.basePath, task.platform, 'accounts.txt')} — email:password formatida`);
+        task.logs.push(`📁 ${path.join(pool.basePath, task.platform, 'cookies/')} — cookie JSON fayllar`);
+        progressCallback(task);
+        saveTaskProgress(task, paths);
+        activeTasks.delete(task.id);
+        return;
+    }
+
+    task.logs.push(`📊 Pool: ${stats.total} account (${stats.active} tayyor, ${stats.withCookies} cookie, ${stats.banned} banned)`);
+    progressCallback(task);
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (let i = 0; i < count; i++) {
+        const taskState = activeTasks.get(task.id);
+        if (!taskState || taskState.stopRequested) {
+            task.status = 'stopped';
+            progressCallback(task);
+            saveTaskProgress(task, paths);
+            activeTasks.delete(task.id);
+            return;
+        }
+
+        // Get next available account
+        const account = pool.getNext(task.platform, 120000); // 2 min cooldown
+        if (!account) {
+            task.logs.push(`⏳ Barcha accountlar cooldown'da. ${i}/${count} bajarildi.`);
+            // Wait and retry
+            await new Promise(r => setTimeout(r, 30000));
+            const retryAccount = pool.getNext(task.platform, 120000);
+            if (!retryAccount) {
+                task.logs.push('❌ Hech qanday account mavjud emas. Task to\'xtatildi.');
+                break;
+            }
+        }
+
+        const currentAccount = account || pool.getNext(task.platform, 0);
+        if (!currentAccount) break;
+
+        // Launch browser
+        let browserCtx = null;
+        let page = null;
+
+        try {
+            let proxy = null;
+            if (task.useProxy) {
+                proxy = await proxyManager.getBestProxy(paths);
+            }
+
+            browserCtx = await browser.launchBrowser({
+                headless: task.headless !== false,
+                proxy: proxy
+            });
+            page = browserCtx.page;
+
+            // Step 1: Login
+            task.logs.push(`🔐 Login: ${currentAccount.email || currentAccount.id} ...`);
+            progressCallback(task);
+
+            const loginResult = await loginHelper.universalLogin(page, currentAccount, task.platform);
+
+            if (!loginResult.success) {
+                task.logs.push(`❌ Login failed: ${loginResult.error}`);
+                failCount++;
+                if (loginResult.error && loginResult.error.includes('banned')) {
+                    pool.ban(currentAccount.id);
+                }
+                continue;
+            }
+
+            task.logs.push(`✅ Login muvaffaqiyatli (${loginResult.method})`);
+
+            // Step 2: Perform Action
+            const target = task.target || task.targetUrl || task.url || '';
+            task.logs.push(`🎯 Action: ${task.action} → ${target}`);
+            progressCallback(task);
+
+            const actionResult = await actionEngine.executeAction(page, task.platform, task.action, target);
+
+            if (actionResult.success) {
+                successCount++;
+                task.completed = (task.completed || 0) + 1;
+                const note = actionResult.alreadySubscribed || actionResult.alreadyFollowing || actionResult.alreadyMember 
+                    ? ' (allaqachon bajarilgan)' : '';
+                task.logs.push(`✅ ${task.action} muvaffaqiyatli!${note}`);
+            } else {
+                failCount++;
+                task.failed = (task.failed || 0) + 1;
+                task.logs.push(`❌ ${task.action} xato: ${actionResult.error}`);
+            }
+
+            // Step 3: Release account back to pool
+            pool.release(currentAccount.id, 120000);
+
+        } catch (e) {
+            failCount++;
+            task.failed = (task.failed || 0) + 1;
+            task.logs.push(`💥 Fatal error: ${e.message}`);
+        } finally {
+            // Close browser
+            if (browserCtx) {
+                try { await browserCtx.browser.close(); } catch (e) {}
+            }
+        }
+
+        task.progress = Math.round(((i + 1) / count) * 100);
+        progressCallback(task);
+        saveTaskProgress(task, paths);
+
+        // Random delay between actions (human-like)
+        const delay = task.delay || (5000 + Math.floor(Math.random() * 10000));
+        if (i < count - 1) {
+            task.logs.push(`⏱ Kutish: ${Math.round(delay / 1000)}s...`);
+            await new Promise(r => setTimeout(r, delay));
+        }
+    }
+
+    task.status = 'completed';
+    task.completedAt = new Date().toISOString();
+    task.logs.push(`\n📈 Natija: ${successCount} muvaffaqiyatli, ${failCount} xato, jami ${count} ta`);
+    progressCallback(task);
+    saveTaskProgress(task, paths);
+    activeTasks.delete(task.id);
+    logToFile(paths, `Pool action task ${task.id} completed: ${successCount} success, ${failCount} failed`);
+}
+
 async function runCreateAccounts(task, platformModule, paths, progressCallback) {
     task.logs = task.logs || [];
     const count = task.count || 1;
@@ -181,7 +336,7 @@ async function runCreateAccounts(task, platformModule, paths, progressCallback) 
             } else {
                 task.failed = (task.failed || 0) + 1;
                 task.logs.push(`[ERROR] Account creation failed, skipping to next... Reason: ${result.error || 'Blocked by Anti-Bot'}`);
-                continue; // Skip to the next iteration (Volume Strategy)
+                continue;
             }
 
             const accountObj = {
@@ -246,8 +401,24 @@ function createAccounts(task, paths, progressCallback) {
     runCreateAccounts(task, platformModule, paths, progressCallback);
 }
 
+/**
+ * Get account pool stats for all platforms (for UI display)
+ */
+function getPoolStats() {
+    const { getPool } = require('./account-pool');
+    const pool = getPool();
+    const platforms = ['youtube', 'instagram', 'tiktok', 'discord', 'twitter', 'facebook', 'telegram', 'twitch', 'spotify', 'roblox'];
+    const stats = {};
+    for (const p of platforms) {
+        pool.loadAll(p);
+        stats[p] = pool.getStats(p);
+    }
+    return stats;
+}
+
 module.exports = {
     executeTask,
     stopTask,
-    createAccounts
+    createAccounts,
+    getPoolStats
 };

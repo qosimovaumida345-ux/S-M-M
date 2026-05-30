@@ -366,7 +366,19 @@ async function handleCreateAccount(page, task, paths, proxy) {
                 
                 // Auto-verify email if account created
                 if (!isCaptchaTriggered) {
-                    await tempEmail.autoVerifyEmail(login, domain, page, 60000);
+                    const mailInfo = await tempEmail.waitForCode(login, domain, 60000);
+                    if (mailInfo.found) {
+                        try {
+                            if (mailInfo.link) {
+                                const verifyPage = await page.context().newPage();
+                                await verifyPage.goto(mailInfo.link, { waitUntil: 'load', timeout: 15000 });
+                                await verifyPage.waitForTimeout(5000);
+                                await verifyPage.close();
+                            } else if (mailInfo.code) {
+                                await tempEmail.autoVerifyOnPage(mailInfo.code, null, page);
+                            }
+                        } catch(e) {}
+                    }
                 }
                 
                 return {

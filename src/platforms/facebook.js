@@ -249,17 +249,21 @@ async function handleCreateAccount(page, task, paths, proxy) {
         const methods = [
             // METHOD 1: Mobile registration (Virtual Box UA already active)
             async () => {
+                const { generateIdentity } = require('../core/identity');
+                const tempEmailModule = require('../core/temp-email');
+                
+                const identity = generateIdentity();
+                const { email, login, domain } = await tempEmailModule.generateEmail('fb');
+                const password = identity.password;
+                
                 await page.goto('https://m.facebook.com/reg/', { waitUntil: 'load' });
                 await page.waitForTimeout(3000 + Math.random() * 2000);
                 
                 const fnInput = await page.locator('input[name="firstname"]');
                 if (await fnInput.count() === 0) return null;
                 
-                const firstName = ['John', 'David', 'Michael', 'Chris', 'James'][Math.floor(Math.random() * 5)];
-                const lastName = ['Smith', 'Doe', 'Brown', 'Davis', 'Wilson'][Math.floor(Math.random() * 5)];
-                
-                await fnInput.first().fill(firstName);
-                await page.locator('input[name="lastname"]').fill(lastName);
+                await fnInput.first().fill(identity.firstName || 'John');
+                await page.locator('input[name="lastname"]').fill(identity.lastName || 'Smith');
                 await page.waitForTimeout(500);
                 
                 const nextBtn1 = await page.locator('button[value="Next"], input[value="Next"]');
@@ -290,11 +294,11 @@ async function handleCreateAccount(page, task, paths, proxy) {
                         }
                         
                         return {
-                            username: `${firstName.toLowerCase()}${lastName.toLowerCase()}`,
-                            email: tempEmail,
+                            username: identity.username,
+                            email: email,
                             password: password,
-                            firstName: firstName,
-                            lastName: lastName,
+                            firstName: identity.firstName,
+                            lastName: identity.lastName,
                             captchaTriggered: isCaptchaTriggered
                         };
                     }
